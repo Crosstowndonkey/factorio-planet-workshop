@@ -4,6 +4,8 @@
 --           Brimstone's world, research, and real assemblers for "made only here"
 --   terrain every test planet's generated world: shapes, ground shares, liquids, cliffs, plants, rocks, enemies,
 --           picture and sky, and starting resources on several seeds
+--   designer the Planet Designer: its window and controls, the preview, codes, import, and that the preview
+--           uses exactly the map settings the finished planet gets
 --   added   the same codes added to a save that was made without them
 --   codec   codes made in game with helpers.encode_string read back by the mod's own decoder
 local codes = require("__planet-workshop__.lib.codes")
@@ -36,6 +38,14 @@ local function has_effect(tech, kind, value)
     if e.type == kind and (e.recipe == value or e.space_location == value) then return true end
   end
   return false
+end
+
+local function same(a, b)
+  if type(a) ~= type(b) then return false end
+  if type(a) ~= "table" then return a == b end
+  for k, v in pairs(a) do if not same(v, b[k]) then return false end end
+  for k in pairs(b) do if a[k] == nil then return false end end
+  return true
 end
 
 local function generate(surface, radius)
@@ -71,9 +81,13 @@ local function test_prototypes()
   check("the custom ore item exists", prototypes.item[ore] ~= nil)
   check("the ore mines into its own item", prototypes.entity[ore] and
     prototypes.entity[ore].mineable_properties.products[1].name == ore)
-  -- each resource on a planet gets the planet's own map-gen control (shown in the new-game map settings)
-  check("the ore has the planet's map-gen control", prototypes.autoplace_control[B .. "-res-1"] ~= nil)
-  check("so does vanilla iron on Brimstone", prototypes.autoplace_control[B .. "-res-2"] ~= nil)
+  -- each resource takes a slot of the terrain kit; the planet's map settings hold its amounts
+  local controls = planet and planet.map_gen_settings.autoplace_controls or {}
+  check("the ore has a kit resource slot (size 1.5 from the code)", controls["pw-k-res-s1"] and
+    math.abs(controls["pw-k-res-s1"].size - 1.5) < 0.01, serpent.line(controls["pw-k-res-s1"]))
+  check("vanilla iron has the next slot (iron is denser: size 1.25)", controls["pw-k-res-s2"] and
+    math.abs(controls["pw-k-res-s2"].size - 1.25) < 0.01, serpent.line(controls["pw-k-res-s2"]))
+  check("crude oil has a fluid slot", controls["pw-k-res-g1"] ~= nil)
 
   local pack = B .. "-pack"
   check("the science pack exists", prototypes.item[pack] ~= nil)
@@ -395,6 +409,144 @@ local function test_terrain()
   end
 end
 
+-- designer ----------------------------------------------------------------------------------------------------
+
+local function R(name, ...) return remote.call("planet-workshop", name, ...) end
+
+--- Finds a GUI element by its tags (depth first).
+local function find(el, test)
+  if el.tags and test(el.tags, el) then return el end
+  for _, child in ipairs(el.children) do
+    local found = find(child, test)
+    if found then return found end
+  end
+  return nil
+end
+
+local function root(player) return player.gui.screen.pw_designer end
+
+local function test_designer()
+  local player = game.players[1]
+  check("there is a player to design with", player ~= nil)
+  R("start_designer")
+  check("the designer window opens", root(player) ~= nil)
+  check("the player flies freely (no body)", player.controller_type == defines.controllers.god)
+  local designs = R("designer_designs")
+  check("a blank planet to start from", #designs == 1 and designs[1].terrain.ground[1].tile == "sand-1")
+  check("a fresh planet id", type(designs[1].id) == "string" and #designs[1].id == 8, designs[1].id)
+  local surface = game.surfaces["pw-preview-" .. player.index]
+  check("a preview surface", surface ~= nil)
+  check("the preview camera is in the window", root(player) and root(player).body.right.camera ~= nil)
+
+  -- every tab builds
+  for tab = 1, 8 do
+    local ok, err = pcall(R, "designer_tab", player.index, tab)
+    check("tab " .. tab .. " builds", ok, err)
+  end
+
+  -- use the real controls: shape dropdown, liquid, a ground tile, a slider
+  R("designer_tab", player.index, 2)
+  local shape = find(root(player), function(t) return t.pw == "pick" and t.path == "terrain.shape" end)
+  shape.selected_index = 5 -- continents
+  R("designer_event", "on_gui_selection_state_changed", {element = shape, player_index = player.index})
+  local liquid = find(root(player), function(t) return t.pw == "pick" and t.path == "terrain.liquid" end)
+  liquid.selected_index = 2 -- lava
+  R("designer_event", "on_gui_selection_state_changed", {element = liquid, player_index = player.index})
+  local tile = find(root(player), function(t) return t.pw == "elem" and t.path == "terrain.ground.1.tile" end)
+  tile.elem_value = "volcanic-ash-dark"
+  R("designer_event", "on_gui_elem_changed", {element = tile, player_index = player.index})
+  local add = find(root(player), function(t) return t.pw == "add-ground" end)
+  R("designer_event", "on_gui_click", {element = add, player_index = player.index})
+  local share = find(root(player), function(t) return t.pw == "number" and t.path == "terrain.ground.1.share" end)
+  share.slider_value = 3
+  R("designer_event", "on_gui_value_changed", {element = share, player_index = player.index})
+  local d = R("designer_designs")[1]
+  check("the controls change the planet", d.terrain.shape == "continents" and d.terrain.liquid == "lava" and
+    d.terrain.ground[1].tile == "volcanic-ash-dark" and d.terrain.ground[1].share == 3 and #d.terrain.ground == 2,
+    serpent.line(d.terrain))
+  check("the slider's label follows it", share.parent.pw_value.caption[2] == "3")
+
+  -- a resource, through the resources tab
+  R("designer_tab", player.index, 4)
+  local pick = find(root(player), function(t) return t.pw == "add-resource" end)
+  pick.elem_value = "iron-ore"
+  R("designer_event", "on_gui_elem_changed", {element = pick, player_index = player.index})
+  check("a resource added", #R("designer_designs")[1].resources == 1)
+
+  local second = R("designer_designs")[1].terrain.ground[2].tile
+  return 600, function()
+    local s = game.surfaces["pw-preview-" .. player.index]
+    local area = {{-160, -160}, {160, 160}}
+    local total = s.count_tiles_filtered{area = area}
+    local chosen = s.count_tiles_filtered{area = area, name = {"volcanic-ash-dark", second, "lava", "lava-hot"}}
+    check("the preview shows the new ground and lava", total > 0 and chosen == total, chosen .. "/" .. total)
+    check("the preview has lava", s.count_tiles_filtered{area = area, name = {"lava", "lava-hot"}} > 0)
+    check("the preview has iron near the start", s.count_entities_filtered{name = "iron-ore", area = area} > 0)
+    local ash = s.count_tiles_filtered{area = area, name = "volcanic-ash-dark"}
+    local other = s.count_tiles_filtered{area = area, name = second}
+    info(string.format("preview: ash %.0f%% of the land (share 3 of 4 -> about 75%%)", 100 * ash / math.max(1, ash + other)))
+
+    -- the code holds the planet exactly
+    local code = R("designer_code", player.index)
+    local pack = codes.decode_body(code:sub(5))
+    local design = R("designer_designs")[1]
+    check("Get code makes a code that reads back as the same planet", pack and same(pack.planets[1], design),
+      pack and serpent.line(pack.planets[1].terrain))
+    local count = R("designer_import", player.index, "junk with no code")
+    check("importing junk adds nothing", count == 0 and #R("designer_designs") == 1)
+
+    -- the preview uses exactly the map settings the loader gives the finished planet
+    local n = R("designer_import", player.index, settings.startup["planet-workshop-planets"].value)
+    check("importing the test codes adds their planets", n == 8 and #R("designer_designs") == 9, n)
+    for i, design in ipairs(R("designer_designs")) do
+      if design.id == "glac0003" then
+        local dd = find(root(player), function(t) return t.pw == "select-design" end)
+        dd.selected_index = i
+        R("designer_event", "on_gui_selection_state_changed", {element = dd, player_index = player.index})
+      end
+    end
+    local planet_mgs = prototypes.space_location["pw-glac0003"].map_gen_settings
+    local preview_mgs = game.surfaces["pw-preview-" .. player.index].map_gen_settings
+    local function keys(t) local r = {} for k in pairs(t or {}) do r[#r + 1] = k end table.sort(r) return table.concat(r, ",") end
+    check("preview and planet: same property rules", keys(planet_mgs.property_expression_names) ==
+      keys(preview_mgs.property_expression_names))
+    local same_values = true
+    for k, v in pairs(planet_mgs.property_expression_names) do
+      if preview_mgs.property_expression_names[k] ~= v then same_values = false end
+    end
+    check("preview and planet: same rule for each property", same_values)
+    check("preview and planet: same tiles", keys(planet_mgs.autoplace_settings.tile.settings) ==
+      keys(preview_mgs.autoplace_settings.tile.settings))
+    check("preview and planet: same entities", keys(planet_mgs.autoplace_settings.entity.settings) ==
+      keys(preview_mgs.autoplace_settings.entity.settings))
+    local same_controls = true
+    for k, v in pairs(planet_mgs.autoplace_controls) do
+      local w = preview_mgs.autoplace_controls[k]
+      if not w or math.abs(w.size - v.size) > 0.001 or math.abs(w.frequency - v.frequency) > 0.001 then
+        same_controls = false
+      end
+    end
+    check("preview and planet: same control values", same_controls)
+
+    -- new, copy, delete (delete needs two clicks)
+    R("designer_do", player.index, "new")
+    check("New adds a blank planet", #R("designer_designs") == 10)
+    R("designer_do", player.index, "copy")
+    local all = R("designer_designs")
+    check("Copy adds a copy with its own id", #all == 11 and all[11].id ~= all[10].id and all[11].name:find("copy"))
+    R("designer_do", player.index, "delete")
+    check("one click doesn't delete", #R("designer_designs") == 11)
+    R("designer_do", player.index, "delete")
+    check("the second click deletes", #R("designer_designs") == 10)
+    R("designer_do", player.index, "walk")
+    check("Fly around takes the player to the preview", player.surface.name == "pw-preview-" .. player.index)
+    R("designer_do", player.index, "walk")
+    check("...and back", player.surface.name == "nauvis")
+    local ok = pcall(R, "designer_do", player.index, "get-code")
+    check("the code window opens", ok and player.gui.screen.pw_designer_code ~= nil)
+  end
+end
+
 -- added -----------------------------------------------------------------------------------------------------
 
 local function test_added()
@@ -407,14 +559,6 @@ local function test_added()
 end
 
 -- codec -----------------------------------------------------------------------------------------------------
-
-local function same(a, b)
-  if type(a) ~= type(b) then return false end
-  if type(a) ~= "table" then return a == b end
-  for k, v in pairs(a) do if not same(v, b[k]) then return false end end
-  for k in pairs(b) do if a[k] == nil then return false end end
-  return true
-end
 
 local function test_codec()
   local planet = {id = "abcd1234", name = "Ünïcode ☃ \"quoted\" \\ test", list = {1, 2.5, -3e5, true, false},
@@ -492,6 +636,7 @@ local SUITES = {
   bridge = function() test_prototypes(); return test_world() end,
   added = test_added,
   terrain = test_terrain,
+  designer = test_designer,
   codec = test_codec,
 }
 

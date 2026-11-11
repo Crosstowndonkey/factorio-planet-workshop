@@ -1,4 +1,17 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.0.3
+Date: 2026-11-12
+  Features:
+    - The Planet Designer scenario (New game > Scenarios): design planets in a window with tabs for the name,
+      terrain, plants and rocks, resources, enemies, physics, space route and looks, beside a live preview you can
+      zoom, reseed and fly over. Several planets per save; New, Copy and Delete.
+    - Get code makes the planet's code (selected, ready to copy, and saved to script-output/planet-workshop);
+      Import code loads planet codes to look at or change.
+  Changes:
+    - Every planet now generates from one shared terrain kit whose numbers live in the planet's map settings, so
+      the designer's preview uses exactly the rules the finished planet gets.
+    - Ground tiles mix closer to their shares (3:1 now gives about 74%, was 84-89%).
+---------------------------------------------------------------------------------------------------
 Version: 0.0.2
 Date: 2026-11-12
   Features:

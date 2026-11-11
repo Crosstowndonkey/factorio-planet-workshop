@@ -1,12 +1,12 @@
 #!/bin/bash
 # Runs the test suites headless in a throwaway folder (never touches ~/.factorio).
-# Usage: tools/run_tests.sh [suite ...]      suites: bridge terrain codec added (default: all)
+# Usage: tools/run_tests.sh [suite ...]      suites: bridge terrain designer scenario codec added (default: all)
 # FACTORIO=/path/to/factorio overrides the game binary. KEEP=1 keeps the throwaway folder (its path is printed).
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FACTORIO="${FACTORIO:-/mnt/GamingSSD/SteamLibrary/steamapps/common/Factorio/bin/x64/factorio}"
 SUITES=("$@")
-[ ${#SUITES[@]} -eq 0 ] && SUITES=(bridge terrain codec added)
+[ ${#SUITES[@]} -eq 0 ] && SUITES=(bridge terrain designer scenario codec added)
 WORK="$(mktemp -d)"
 if [ -n "$KEEP" ]; then echo "(work folder: $WORK)"; else trap 'rm -rf "$WORK"' EXIT; fi
 mkdir -p "$WORK/mods" "$WORK/write"
@@ -41,6 +41,22 @@ report() {  # report <log>: the STA lines, and any error
 FAILED=0
 for suite in "${SUITES[@]}"; do
   echo "=== $suite"
+  if [ "$suite" = scenario ]; then
+    # the Planet Designer scenario starts on a headless server without errors
+    mod_list false
+    printf '{"name":"pw-test","description":"","tags":[],"max_players":0,"visibility":{"public":false,"lan":false},"require_user_verification":false,"auto_pause":false,"autosave_interval":0,"game_password":""}' > "$WORK/server.json"
+    \rm -f "$WORK/mods/mod-settings.dat"
+    timeout -s INT 20 "$FACTORIO" -c "$WORK/config.ini" --mod-directory "$WORK/mods" \
+      --start-server-load-scenario planet-workshop/planet-designer --server-settings "$WORK/server.json" --port 34298 \
+      < /dev/null > "$WORK/scenario.log" 2>&1 || true
+    if grep -q "Planet Designer started" "$WORK/scenario.log" && ! grep -E "Error|error while" "$WORK/scenario.log" | grep -qv "Got EOF on stdin"; then
+      echo "STA scenario: 1 passed, 0 failed"
+    else
+      grep -E -A8 "Error|error" "$WORK/scenario.log" | grep -v "Got EOF" | head -30
+      echo "STA scenario: 0 passed, 1 failed"; FAILED=1
+    fi
+    continue
+  fi
   if [ "$suite" = added ]; then
     mod_list false   # make the save without any planet codes...
     run --create "$WORK/added.zip" > "$WORK/added-create.log" 2>&1 || { cat "$WORK/added-create.log"; exit 1; }

@@ -3,7 +3,10 @@
 A Factorio 2.1 + Space Age mod: design your own planets in an in-game Planet Designer, then add them to any Space
 Age save and share them with other players as **planet codes** (like blueprint strings).
 
-**Status: step 1 (planet generation) is done.** A planet code pasted into the mod's startup setting becomes a real
+**Status: step 2 (the Planet Designer) is done.** Start **New game > Scenarios > Planet Designer (Planet
+Workshop)** to design planets with a live preview, then press **Get code**.
+
+**Earlier: step 1 (planet generation).** A planet code pasted into the mod's startup setting becomes a real
 planet: you can research it, fly to it, and mine its own ore, and it comes with its own science pack, recipes and
 technologies. Its terrain, liquid, cliffs, plants, rocks, enemies, physics and look all come from the code. The
 designer GUI comes next.
@@ -47,18 +50,30 @@ References to the planet's own things start with `@`: `@pack`, `@ore:<key>`, `@r
 `@discovery`. Anything else names a vanilla or modded prototype. "Only here" recipes use a hidden surface property
 `pw-<id>-here` that only that planet has.
 
+## The Planet Designer
+
+`scenarios/planet-designer` only switches the designer on (remote `start_designer`); everything else is in the
+mod: `script/designer/state.lua` (the designs, in the code format, in `storage.designer`), `gui.lua` (the window;
+every input's tags say which field it changes), `preview.lua` (a preview surface per player) and `init.lua` (events
+and actions). The preview camera only draws charted ground, so the preview area is charted after each change.
+
 ## How a planet's world is generated
 
-`prototypes/terrain.lua` gives every planet its own named noise expressions (`pw_<id>_...`) and points its map
-settings at them, so no other planet changes. The choices live in `lib/catalog.lua`.
+A running game can't make noise rules, so every planet and the designer preview use one **terrain kit**
+(`lib/kit.lua`, defined in `prototypes/kit.lua`): named noise expressions whose numbers (ground shares, patch size,
+plant and rock amounts, resource sizes) come from hidden map-gen controls in each planet's map settings.
+`lib/mapgen.lua` turns a planet into those settings; the loader and the designer both call it, so the preview is
+made by exactly the rules the finished planet gets (the designer test checks they match). Kit slot counts and
+expressions should only ever be added to once released, or existing planets' new chunks would change. The
+choices live in `lib/catalog.lua`.
 
 - **Land:** the vanilla shapes reuse the game's elevation (with its starting lake); archipelago and continents are
   ours, calibrated by measurement (archipelagos about 60% sea, continents about 30%), with ragged land around the
   landing spot and, on water planets, a starting pond. The liquid amount slider is the game's water control.
 - **Ground:** each tile gets its own patch noise and the highest wins, so tiles from different planets mix
   naturally and each tile's share sets how much of the land it covers.
-- **Resources:** all of a planet's resources share the planet's own patch set, so each starting resource gets a
-  patch near the landing spot, like Nauvis' starting ores. `script/starting.lua` checks the first time a planet is
+- **Resources:** each resource takes a kit slot of its kind (starting / other, ore / fluid) in one shared patch set,
+  so each starting resource gets a patch near the landing spot, like Nauvis' starting ores. `script/starting.lua` checks the first time a planet is
   visited and adds a small patch if a seed buried one (e.g. under lava).
 - **Picture:** the planet that half or more of the ground comes from; otherwise the closest colour to each vanilla
   planet's own ground. **Sky:** the home planet of most of the ground.
@@ -67,13 +82,16 @@ settings at them, so no other planet changes. The choices live in `lib/catalog.l
 
 ## Developing
 
-- `tools/run_tests.sh [bridge terrain codec added]` runs the headless test suites in a throwaway folder (never
+- `tools/run_tests.sh [bridge terrain designer scenario codec added]` runs the headless test suites in a throwaway folder (never
   `~/.factorio`). `KEEP=1` keeps the folder for reading logs.
   - **bridge**: the test planets (including Frostbite, which is full of mistakes) plus a broken code and a
     too-new code, loaded into a new game: prototypes, generated terrain and ore, research, and real assemblers
     showing the pack is only made on its planet.
   - **terrain**: eight test planets' generated worlds: land shapes, ground shares, liquids, cliffs, plants, rocks,
     enemies, pictures and skies, starting resources on several seeds, and the safety net on a buried seed.
+  - **designer**: the window and its real controls, the preview, Get code / Import, New / Copy / Delete, and
+    that the preview's map settings match the finished planet's.
+  - **scenario**: the Planet Designer scenario starts on a headless server without errors.
   - **codec**: codes made in game with `helpers.encode_string` read back by the mod's decoder; a 1.5 MB planet;
     428 damaged or cut codes that must fail politely; JSON edge cases.
   - **added**: the codes added to a save that was made without them.

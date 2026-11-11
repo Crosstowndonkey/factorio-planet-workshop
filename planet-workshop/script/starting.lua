@@ -1,7 +1,7 @@
 -- The starting-resources safety net (runtime).
 --
 -- A planet's map settings already give every starting resource a patch near the landing spot (the planet's
--- own patch set, see prototypes/terrain.lua), but noise can't promise it: on some seeds a patch lands under a
+-- patch set in the terrain kit, see lib/kit.lua), but noise can't promise it: on some seeds a patch lands under a
 -- lava sea or under another ore. So the first time a Planet Workshop planet's surface is created, the area
 -- around the landing spot is generated and any starting resource missing within SEARCH tiles gets a small
 -- patch on dry ground nearby. It runs once per surface.

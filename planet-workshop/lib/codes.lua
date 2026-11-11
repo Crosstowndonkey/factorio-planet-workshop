@@ -31,6 +31,11 @@ function M.decode_body(body)
   return result
 end
 
+--- Makes a code from a list of planets (runtime only: needs helpers).
+function M.encode(planets)
+  return M.PREFIX .. helpers.encode_string(helpers.table_to_json({planets = planets}))
+end
+
 --- Short label for a code in messages: its first characters.
 local function label(code)
   if #code > 18 then return code:sub(1, 14) .. "..." end

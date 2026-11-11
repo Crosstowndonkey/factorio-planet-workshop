@@ -7,7 +7,7 @@ local M = {}
 M.PLANETS = {"nauvis", "vulcanus", "gleba", "fulgora", "aquilo"}
 
 --- Land shapes. `vanilla` shapes use the game's own elevation (with its starting lake); the others are ours
---- (prototypes/terrain.lua). All of them keep land around the landing spot.
+--- (prototypes/kit.lua). All of them keep land around the landing spot.
 M.SHAPES = {
   lakes = {vanilla = "elevation_nauvis"},
   ["big-lakes"] = {vanilla = "elevation_lakes"},

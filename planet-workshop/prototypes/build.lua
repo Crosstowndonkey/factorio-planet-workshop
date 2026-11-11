@@ -9,7 +9,8 @@
 local util = require("util")
 local asteroid_util = require("__space-age__.prototypes.planet.asteroid-spawn-definitions")
 local spec = require("__planet-workshop__.lib.spec")
-local terrain = require("__planet-workshop__.prototypes.terrain")
+local mapgen = require("__planet-workshop__.lib.mapgen")
+local kitdefs = require("__planet-workshop__.prototypes.kit")
 
 local M = {}
 
@@ -222,7 +223,7 @@ function Builder:build_ores()
     res.minable.fluid_amount = nil
     tint_sprites(res.stages, ore.tint)
     tint_sprites(res.stages_effect, ore.tint)
-    -- Placed only where a planet's map settings ask for it (prototypes/terrain.lua), never by default.
+    -- Placed only where a planet's map settings ask for it (lib/mapgen.lua), never by default.
     res.autoplace = {order = "b", probability_expression = 0, richness_expression = 0}
 
     local item = util.table.deepcopy(base_item)
@@ -396,13 +397,38 @@ function Builder:build_discovery()
   }}
 end
 
+-- What exists in this game, for lib/mapgen.lua (the designer has a runtime version of this).
+local tile_home, reference_colors
+function Builder:lookup()
+  if not tile_home then tile_home, reference_colors = kitdefs.planet_info() end
+  return {
+    tile = function(name)
+      local t = data.raw.tile[name]
+      return t and {autoplace = t.autoplace ~= nil, color = t.map_color, fluid = t.fluid ~= nil} or nil
+    end,
+    tile_home = function(name) return tile_home[name] end,
+    reference_colors = reference_colors,
+    resource = function(name)
+      local r = data.raw.resource[name]
+      return r and {fluid = (r.category or ""):find("fluid") ~= nil, autoplace = r.autoplace ~= nil} or nil
+    end,
+    entity = function(name) return kitdefs.entity_exists(name) ~= nil end,
+    cliff = function(name) return data.raw.cliff ~= nil and data.raw.cliff[name] ~= nil end,
+    decoratives = kitdefs.planet_decoratives,
+    pollutant = function(name) return data.raw["airborne-pollutant"] ~= nil and data.raw["airborne-pollutant"][name] ~= nil end,
+    style_entities = kitdefs.style_entities,
+    ore_entity = function(key) return self:name("ore", key) end,
+  }
+end
+
 function Builder:build_planet()
   local p = self.p
-  local planet = {}
-  local mgs = terrain.build(self, planet) -- also picks self.picture and self.sky, and sets the enemy fields
+  local made = mapgen.build(p, self:lookup(), function(key, ...) self:problem(key, ...) end)
+  self.picture, self.sky, self.starting = made.picture, made.sky, made.starting
+  local mgs = made.mgs
   local base = data.raw.planet[self.picture]
-  local enemy_fields = {pollutant_type = planet.pollutant_type}
-  planet = util.table.deepcopy(base)
+  local enemy_fields = {pollutant_type = made.pollutant}
+  local planet = util.table.deepcopy(base)
   local sky = data.raw.planet[self.sky] or base
   planet.surface_render_parameters = util.table.deepcopy(sky.surface_render_parameters)
   planet.persistent_ambient_sounds = util.table.deepcopy(sky.persistent_ambient_sounds)
@@ -493,8 +519,7 @@ function M.build_all(found, problems)
       problems[#problems + 1] = {"planet-workshop-problem.duplicate", p.name}
     elseif p then
       seen[p.id] = true
-      local b = setmetatable({p = p, problems = problems, unlocked_by_discovery = {}, built_recipes = {},
-        starting = {}}, Builder)
+      local b = setmetatable({p = p, problems = problems, unlocked_by_discovery = {}, built_recipes = {}}, Builder)
       b:build_ores()
       b:build_planet()
       b:build_science()
