@@ -1,0 +1,8 @@
+---------------------------------------------------------------------------------------------------
+Version: 0.0.1
+Date: 2026-11-12
+  Features:
+    - Proof of concept: planet codes pasted into the "Planet codes" startup setting become real Space Age planets,
+      each with its own space route, discovery technology, ores, science pack, recipes and technologies.
+    - Broken or partly broken codes never stop the game from loading; problems are listed in chat and with
+      /planet-workshop.
