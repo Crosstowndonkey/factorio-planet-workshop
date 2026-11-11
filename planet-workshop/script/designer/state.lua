@@ -1,6 +1,8 @@
 -- The designer's saved state (storage.designer): every planet being designed (in the planet code format, see
 -- lib/spec.lua), and each player's view (which planet, preview zoom and seed, open tab).
 
+local util = require("util")
+
 local M = {}
 
 M.ZOOMS = {0.03, 0.05, 0.08, 0.12, 0.2, 0.35}
@@ -20,7 +22,7 @@ function M.player(index)
   local d = storage.designer
   local ps = d.players[index]
   if not ps then
-    ps = {current = 1, zoom = 3, seed = 1000 + index * 7919, tab = 1}
+    ps = {current = 1, zoom = 3, seed = 1000 + index * 7919, section = "general"}
     d.players[index] = ps
   end
   return ps
@@ -64,6 +66,7 @@ function M.blank(player)
     enemies = {kind = "none", amount = 1},
     resources = {},
     ores = {}, recipes = {}, technologies = {},
+    discovery = util.table.deepcopy(M.DEFAULT_DISCOVERY),
   }
 end
 
@@ -73,7 +76,7 @@ function M.current(player)
   if #d.designs == 0 then d.designs[1] = M.blank(player) end
   local ps = M.player(player.index)
   if ps.current > #d.designs or ps.current < 1 then ps.current = 1 end
-  return d.designs[ps.current], ps
+  return M.tidy(d.designs[ps.current]), ps
 end
 
 --- Reads / writes a dotted path ("terrain.ground.2.share"; numbers index lists).
@@ -101,7 +104,44 @@ end
 
 --- Paths whose change alters the generated world (others, like gravity or the route, don't need a new preview).
 function M.affects_map(path)
-  return path:find("^terrain") or path:find("^resources") or path:find("^enemies") or path:find("^look")
+  return path:find("^terrain") or path:find("^resources") or path:find("^enemies") or path:find("^look") or
+    path:find("^ores")
+end
+
+M.DEFAULT_DISCOVERY = {
+  prerequisites = {"space-platform-thruster"}, count = 1000, time = 60,
+  ingredients = {{name = "automation-science-pack", amount = 1}, {name = "logistic-science-pack", amount = 1},
+    {name = "chemical-science-pack", amount = 1}, {name = "space-science-pack", amount = 1}},
+}
+
+--- Puts a planet (maybe from an older code, or written by hand) into the shape the designer edits: every list
+--- present, and amounts written as {name = , amount = } (codes may also have {"iron-plate", 2}).
+function M.tidy(d)
+  local function named(list)
+    if type(list) ~= "table" then return {} end
+    for i, e in ipairs(list) do
+      if type(e) == "table" and e.name == nil and e[1] ~= nil then list[i] = {name = e[1], amount = e[2] or 1} end
+    end
+    return list
+  end
+  d.ores = type(d.ores) == "table" and d.ores or {}
+  d.resources = type(d.resources) == "table" and d.resources or {}
+  d.recipes = type(d.recipes) == "table" and d.recipes or {}
+  d.technologies = type(d.technologies) == "table" and d.technologies or {}
+  if type(d.discovery) ~= "table" then d.discovery = util.table.deepcopy(M.DEFAULT_DISCOVERY) end
+  d.discovery.prerequisites = type(d.discovery.prerequisites) == "table" and d.discovery.prerequisites or {}
+  d.discovery.ingredients = named(d.discovery.ingredients)
+  if type(d.science) == "table" then d.science.ingredients = named(d.science.ingredients) end
+  for _, r in ipairs(d.recipes) do
+    r.ingredients = named(r.ingredients)
+    r.results = named(r.results)
+  end
+  for _, t in ipairs(d.technologies) do
+    t.ingredients = named(t.ingredients)
+    t.prerequisites = type(t.prerequisites) == "table" and t.prerequisites or {}
+    t.effects = type(t.effects) == "table" and t.effects or {}
+  end
+  return d
 end
 
 return M

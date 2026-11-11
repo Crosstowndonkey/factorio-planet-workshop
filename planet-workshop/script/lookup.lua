@@ -14,8 +14,12 @@ end
 --- A lookup for one planet (its own ores show as the kit's stand-in ores).
 function M.for_planet(p)
   local info = kit_info()
-  local ore_index = {}
-  for i, ore in ipairs(p.ores or {}) do ore_index[ore.key] = i end
+  -- each own ore shows as a stand-in of its base look (the 1st, 2nd... ore with that look)
+  local stand_in, per_base = {}, {}
+  for _, ore in ipairs(p.ores or {}) do
+    per_base[ore.base] = (per_base[ore.base] or 0) + 1
+    if per_base[ore.base] <= kit.PREVIEW_ORES then stand_in[ore.key] = kit.preview_ore(ore.base, per_base[ore.base]) end
+  end
   return {
     tile = function(name)
       local t = prototypes.tile[name]
@@ -33,10 +37,7 @@ function M.for_planet(p)
     decoratives = function(planet) return info.decoratives[planet] or {} end,
     pollutant = function(name) return prototypes.airborne_pollutant[name] ~= nil end,
     style_entities = function(kind, style) return info.styles[kind] and info.styles[kind][style] or {} end,
-    ore_entity = function(key)
-      local i = ore_index[key]
-      return i and i <= kit.PREVIEW_ORES and kit.preview_ore(i) or nil
-    end,
+    ore_entity = function(key) return stand_in[key] end,
   }
 end
 

@@ -140,16 +140,24 @@ function M.define()
     end
   end
 
-  -- Stand-in ores for the designer preview: an untinted iron ore that never generates on its own.
-  for i = 1, kit.PREVIEW_ORES do
-    local ore = util.table.deepcopy(data.raw.resource["iron-ore"])
-    ore.name = kit.preview_ore(i)
-    ore.localised_name = {"planet-workshop.preview-ore", tostring(i)}
-    ore.autoplace = {order = "b", probability_expression = 0, richness_expression = 0}
-    ore.factoriopedia_simulation = nil
-    ore.hidden = true
-    ore.hidden_in_factoriopedia = true
-    data:extend{ore}
+  -- Stand-ins for the designer preview: hidden, untinted copies of each base look that never generate on their own
+  local spec = require("__planet-workshop__.lib.spec")
+  for _, bases in ipairs{spec.ORE_BASES, spec.FLUID_BASES} do
+    for base in pairs(bases) do
+      if data.raw.resource[base] then
+        for i = 1, kit.PREVIEW_ORES do
+          local ore = util.table.deepcopy(data.raw.resource[base])
+          ore.name = kit.preview_ore(base, i)
+          ore.localised_name = {"planet-workshop.preview-ore", data.raw.resource[base].localised_name or {"entity-name." .. base}}
+          ore.autoplace = {order = "b", probability_expression = 0, richness_expression = 0}
+          ore.factoriopedia_simulation = nil
+          ore.created_effect = nil
+          ore.hidden = true
+          ore.hidden_in_factoriopedia = true
+          data:extend{ore}
+        end
+      end
+    end
   end
 end
 

@@ -123,6 +123,22 @@ local function test_prototypes()
   check("acid recipe is only for Brimstone", prototypes.recipe[B .. "-recipe-acid"].surface_conditions ~= nil)
   check("smelting recipe works anywhere", prototypes.recipe[B .. "-recipe-smelt"].surface_conditions == nil)
 
+  -- Glacier: its own fluid resource, a pack made from it that spoils, a recipe using the fluid
+  local G = "pw-glac0003"
+  check("glacier: its own fluid exists", prototypes.fluid[G .. "-fluid-cryo"] ~= nil)
+  local well = prototypes.entity[G .. "-ore-cryo"]
+  check("glacier: its well gives that fluid", well and well.mineable_properties.products[1].type == "fluid" and
+    well.mineable_properties.products[1].name == G .. "-fluid-cryo", well and serpent.line(well.mineable_properties.products))
+  local gpack = prototypes.recipe[G .. "-pack"]
+  local fluid_in = false
+  for _, i in ipairs(gpack and gpack.ingredients or {}) do
+    if i.type == "fluid" and i.name == G .. "-fluid-cryo" then fluid_in = true end
+  end
+  check("glacier: the pack recipe uses the fluid", fluid_in)
+  check("glacier: the pack spoils (30 minutes)", prototypes.item[G .. "-pack"].get_spoil_ticks() == 30 * 3600,
+    prototypes.item[G .. "-pack"].get_spoil_ticks())
+  check("glacier: brine freezing recipe", prototypes.recipe[G .. "-recipe-freeze"] ~= nil)
+
   -- Frostbite: full of mistakes, each left out
   check("Frostbite still loads", prototypes.space_location[F] ~= nil)
   check("missing tile reported", find_problem("missing", "Frostbite", "snow-made-up"))
@@ -379,7 +395,7 @@ local function test_terrain()
     {"brim0001", {"pw-brim0001-ore-sulfite", "iron-ore", "stone"}},
     {"verd0005", {"iron-ore", "copper-ore", "coal", "stone"}},
     {"cind0004", {"tungsten-ore", "calcite", "coal"}, {"sulfuric-acid-geyser"}},
-    {"glac0003", {"iron-ore", "copper-ore"}, {"fluorine-vent"}},
+    {"glac0003", {"iron-ore", "copper-ore"}, {"fluorine-vent", "pw-glac0003-ore-cryo"}},
   } do
     local worst, worst_name, worst_fluid, worst_fluid_name = 0, "", 0, ""
     for seed = 1, 4 do
@@ -412,6 +428,12 @@ end
 -- designer ----------------------------------------------------------------------------------------------------
 
 local function R(name, ...) return remote.call("planet-workshop", name, ...) end
+local spec = require("__planet-workshop__.lib.spec")
+
+local function index_of_value(list, value)
+  for i, v in ipairs(list) do if v == value then return i end end
+  return 1
+end
 
 --- Finds a GUI element by its tags (depth first).
 local function find(el, test)
@@ -507,12 +529,16 @@ local function test_designer()
     end
     local planet_mgs = prototypes.space_location["pw-glac0003"].map_gen_settings
     local preview_mgs = game.surfaces["pw-preview-" .. player.index].map_gen_settings
-    local function keys(t) local r = {} for k in pairs(t or {}) do r[#r + 1] = k end table.sort(r) return table.concat(r, ",") end
+    -- (the planet's own ores show as stand-ins in the preview: count them as the same thing)
+    local function own(k) return (k:gsub("pw%-glac0003%-ore%-[%w%-]+", "OWN"):gsub("pw%-k%-ore%-[%w%-]+%-%d+", "OWN")) end
+    local function keys(t) local r = {} for k in pairs(t or {}) do r[#r + 1] = own(k) end table.sort(r) return table.concat(r, ",") end
     check("preview and planet: same property rules", keys(planet_mgs.property_expression_names) ==
       keys(preview_mgs.property_expression_names))
     local same_values = true
+    local preview_props = {}
+    for k, v in pairs(preview_mgs.property_expression_names) do preview_props[own(k)] = v end
     for k, v in pairs(planet_mgs.property_expression_names) do
-      if preview_mgs.property_expression_names[k] ~= v then same_values = false end
+      if preview_props[own(k)] ~= v then same_values = false end
     end
     check("preview and planet: same rule for each property", same_values)
     check("preview and planet: same tiles", keys(planet_mgs.autoplace_settings.tile.settings) ==
@@ -544,7 +570,124 @@ local function test_designer()
     check("...and back", player.surface.name == "nauvis")
     local ok = pcall(R, "designer_do", player.index, "get-code")
     check("the code window opens", ok and player.gui.screen.pw_designer_code ~= nil)
+
+    -- Production, through the real controls: a planet with its own ore and fluid, pack, recipe and research
+    R("designer_do", player.index, "new")
+    R("designer_set", player.index, "name", "Roundtrip")
+    for section = 9, 12 do
+      local built, err = pcall(R, "designer_tab", player.index, section)
+      check("production section " .. section .. " builds (empty)", built, err)
+    end
+    R("designer_tab", player.index, "ores")
+    R("designer_do", player.index, "add-ore", {kind = "solid"})
+    R("designer_do", player.index, "add-ore", {kind = "fluid"})
+    local name_field = find(root(player), function(t) return t.pw == "text" and t.path == "ores.1.name" end)
+    name_field.text = "Glowstone"
+    R("designer_event", "on_gui_text_changed", {element = name_field, player_index = player.index})
+    local fluid_look = find(root(player), function(t) return t.pw == "pick" and t.path == "ores.2.base" end)
+    fluid_look.selected_index = index_of_value(fluid_look.tags.values, "sulfuric-acid-geyser")
+    R("designer_event", "on_gui_selection_state_changed", {element = fluid_look, player_index = player.index})
+    local design = R("designer_designs")[#R("designer_designs")]
+    check("own ore and fluid added, and to the resources", #design.ores == 2 and #design.resources == 2 and
+      design.resources[1].resource == "@ore:ore1" and design.ores[1].name == "Glowstone" and
+      design.ores[2].base == "sulfuric-acid-geyser", serpent.line(design.ores))
+
+    R("designer_tab", player.index, "science")
+    local on = find(root(player), function(t) return t.pw == "science-on" end)
+    on.state = true
+    R("designer_event", "on_gui_checked_state_changed", {element = on, player_index = player.index})
+    local source = find(root(player), function(t) return t.pw == "ref-source" and t.path == "science.ingredients.1.name" end)
+    source.selected_index = 2 -- the planet's own ore
+    R("designer_event", "on_gui_selection_state_changed", {element = source, player_index = player.index})
+    local spoil = find(root(player), function(t) return t.pw == "number" and t.path == "science.spoil_minutes" end)
+    spoil.slider_value = 30
+    R("designer_event", "on_gui_value_changed", {element = spoil, player_index = player.index})
+
+    R("designer_tab", player.index, "recipes")
+    R("designer_do", player.index, "add-recipe")
+    source = find(root(player), function(t) return t.pw == "ref-source" and t.path == "recipes.1.ingredients.1.name" end)
+    source.selected_index = 3 -- the planet's own fluid
+    R("designer_event", "on_gui_selection_state_changed", {element = source, player_index = player.index})
+    local category = find(root(player), function(t) return t.pw == "pick" and t.path == "recipes.1.category" end)
+    category.selected_index = index_of_value(category.tags.values, "chemistry")
+    R("designer_event", "on_gui_selection_state_changed", {element = category, player_index = player.index})
+    local count = find(root(player), function(t) return t.pw == "num" and t.path == "recipes.1.results.1.amount" end)
+    count.text = "3"
+    R("designer_event", "on_gui_text_changed", {element = count, player_index = player.index})
+
+    R("designer_tab", player.index, "research")
+    R("designer_do", player.index, "add-technology")
+    local add_reward = find(root(player), function(t) return t.pw == "add" and t.path == "technologies.1.effects" end)
+    R("designer_event", "on_gui_click", {element = add_reward, player_index = player.index})
+    source = find(root(player), function(t) return t.pw == "ref-source" and t.path == "technologies.1.effects.1.recipe" end)
+    source.selected_index = 3 -- the planet's own recipe (after the pack recipe)
+    R("designer_event", "on_gui_selection_state_changed", {element = source, player_index = player.index})
+    local add_reward2 = find(root(player), function(t) return t.pw == "add" and t.path == "technologies.1.effects" end)
+    R("designer_event", "on_gui_click", {element = add_reward2, player_index = player.index})
+    local kind = find(root(player), function(t) return t.pw == "effect-type" and t.path == "technologies.1.effects.2" end)
+    kind.selected_index = 3 -- mining productivity
+    R("designer_event", "on_gui_selection_state_changed", {element = kind, player_index = player.index})
+    local bonus = find(root(player), function(t) return t.pw == "num" and t.path == "technologies.1.effects.2.modifier" end)
+    bonus.text = "15"
+    R("designer_event", "on_gui_text_changed", {element = bonus, player_index = player.index})
+
+    design = R("designer_designs")[#R("designer_designs")]
+    local problems = {}
+    local p = spec.normalize(design, problems)
+    check("the designed planet has no problems", p and #problems == 0, serpent.line(problems))
+    check("pack made from the own ore, spoils in 30 min", p.science and p.science.ingredients[1].name == "@ore:ore1" and
+      p.science.spoil_minutes == 30, p.science and serpent.line(p.science.ingredients))
+    check("recipe made from the own fluid, in a chemical plant, makes 3", p.recipes[1].ingredients[1].name == "@ore:fluid1" and
+      p.recipes[1].category == "chemistry" and p.recipes[1].results[1].amount == 3, serpent.line(p.recipes[1]))
+    local e = p.technologies[1] and p.technologies[1].effects or {}
+    check("research unlocks the recipe and gives +15% mining productivity", e[1] and e[1].type == "unlock-recipe" and
+      e[1].recipe == "@recipe:recipe1" and e[2] and e[2].type == "mining-drill-productivity-bonus" and
+      math.abs(e[2].modifier - 0.15) < 0.001, serpent.line(e))
+    R("designer_preview_now", player.index)
+    local mgs = game.surfaces["pw-preview-" .. player.index].map_gen_settings
+    check("the preview shows the own ore as an iron-ore stand-in",
+      mgs.autoplace_settings.entity.settings["pw-k-ore-iron-ore-1"] ~= nil)
+    for section = 9, 12 do
+      local built, err = pcall(R, "designer_tab", player.index, section)
+      check("production section " .. section .. " builds (filled in)", built, err)
+    end
+    -- the code for the roundtrip suite (Get code also saves it to script-output/planet-workshop)
+    R("designer_do", player.index, "get-code")
   end
+end
+
+-- roundtrip: the planet designed in the designer suite, loaded from its code ------------------------------------
+
+local function test_roundtrip()
+  local planet
+  for _, entry in ipairs(report().planets) do
+    if entry.name == "Roundtrip" then planet = entry end
+  end
+  check("the designed planet loads from its code", planet ~= nil)
+  if not planet then return end
+  local P = planet.planet
+  check("its own ore", prototypes.item[P .. "-ore-ore1"] ~= nil and prototypes.item[P .. "-ore-ore1"].localised_name[2] == "Glowstone")
+  check("its own fluid", prototypes.fluid[P .. "-fluid-fluid1"] ~= nil)
+  check("no problems loading it", #report().problems == 0, serpent.line(report().problems))
+  local pack = prototypes.recipe[P .. "-pack"]
+  check("its pack is made from its ore", pack and pack.ingredients[1].name == P .. "-ore-ore1")
+  check("its pack spoils", prototypes.item[P .. "-pack"].get_spoil_ticks() == 30 * 3600)
+  local recipe = prototypes.recipe[P .. "-recipe-recipe1"]
+  local cats = recipe and recipe.categories or {}
+  local chemistry = cats.chemistry ~= nil
+  for _, c in pairs(cats) do if c == "chemistry" then chemistry = true end end
+  check("its recipe uses its fluid in a chemical plant", recipe and recipe.ingredients[1].name == P .. "-fluid-fluid1" and
+    chemistry, serpent.line(cats))
+  local tech = prototypes.technology[P .. "-tech-tech1"]
+  local unlocks, mining = false, false
+  for _, e in ipairs(tech and tech.effects or {}) do
+    if e.type == "unlock-recipe" and e.recipe == P .. "-recipe-recipe1" then unlocks = true end
+    if e.type == "mining-drill-productivity-bonus" and math.abs(e.modifier - 0.15) < 0.001 then mining = true end
+  end
+  check("its research unlocks the recipe and gives mining productivity", unlocks and mining)
+  local s = game.planets[P].create_surface()
+  generate(s, 7)
+  check("its ore generates near the landing spot", nearest(s, P .. "-ore-ore1", 224) <= 200)
 end
 
 -- added -----------------------------------------------------------------------------------------------------
@@ -637,6 +780,7 @@ local SUITES = {
   added = test_added,
   terrain = test_terrain,
   designer = test_designer,
+  roundtrip = test_roundtrip,
   codec = test_codec,
 }
 

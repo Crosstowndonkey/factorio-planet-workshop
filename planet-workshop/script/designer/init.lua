@@ -8,6 +8,8 @@ local spec = require("__planet-workshop__.lib.spec")
 local state = require("__planet-workshop__.script.designer.state")
 local preview = require("__planet-workshop__.script.designer.preview")
 local gui = require("__planet-workshop__.script.designer.gui")
+local W = require("__planet-workshop__.script.designer.widgets")
+local production = require("__planet-workshop__.script.designer.production")
 
 local M = {}
 
@@ -106,7 +108,14 @@ ACTIONS["add-ground"] = function(player)
 end
 
 function ACTIONS.remove(player, _, tags)
-  local list = state.get(state.current(player), tags.path)
+  local design = state.current(player)
+  local list = state.get(design, tags.path)
+  if tags.path == "ores" and list and list[tags.index] then -- an ore stops generating with it
+    local ref = "@ore:" .. list[tags.index].key
+    for i = #design.resources, 1, -1 do
+      if design.resources[i].resource == ref then table.remove(design.resources, i) end
+    end
+  end
   if list and list[tags.index] then table.remove(list, tags.index) end
   preview.schedule(player.index, 1)
   gui.build(player)
@@ -133,6 +142,65 @@ function ACTIONS.walk(player, ps)
       ps.walking = true
     end
   end
+  gui.build(player)
+end
+
+function ACTIONS.section(player, ps, tags)
+  ps.section = tags.key
+  gui.build(player)
+end
+
+--- Adds a copy of tags.template to the list at tags.path.
+function ACTIONS.add(player, _, tags)
+  local design = state.current(player)
+  local list = state.get(design, tags.path)
+  if type(list) ~= "table" then
+    list = {}
+    state.set(design, tags.path, list)
+  end
+  table.insert(list, util.table.deepcopy(tags.template))
+  if state.affects_map(tags.path) then preview.schedule(player.index, 1) end
+  gui.build(player)
+end
+
+--- A key not used yet in a list ("ore1", "ore2"...).
+local function new_key(list, prefix)
+  local used = {}
+  for _, entry in ipairs(list or {}) do used[entry.key] = true end
+  local i = 1
+  while used[prefix .. i] do i = i + 1 end
+  return prefix .. i
+end
+
+ACTIONS["add-ore"] = function(player, _, tags)
+  local design = state.current(player)
+  design.ores = design.ores or {}
+  local fluid = tags.kind == "fluid"
+  local key = new_key(design.ores, fluid and "fluid" or "ore")
+  table.insert(design.ores, {key = key, kind = tags.kind, name = fluid and "New fluid" or "New ore",
+    base = fluid and "crude-oil" or "iron-ore", tint = {r = 0.75, g = 0.55, b = 1}, mining_time = 1, stack_size = 50})
+  -- it generates on the planet straight away (it can be tuned or removed under Resources)
+  table.insert(design.resources, {resource = "@ore:" .. key, frequency = 1, size = 1, richness = 1})
+  preview.schedule(player.index, 1)
+  gui.build(player)
+end
+
+ACTIONS["add-recipe"] = function(player)
+  local design = state.current(player)
+  design.recipes = design.recipes or {}
+  table.insert(design.recipes, {key = new_key(design.recipes, "recipe"), name = "New recipe",
+    ingredients = {{name = "iron-plate", amount = 1}}, results = {{name = "iron-gear-wheel", amount = 1}},
+    category = "crafting", time = 1, only_here = false, enabled = false})
+  gui.build(player)
+end
+
+ACTIONS["add-technology"] = function(player)
+  local design = state.current(player)
+  design.technologies = design.technologies or {}
+  table.insert(design.technologies, {key = new_key(design.technologies, "tech"), name = "New research",
+    prerequisites = {"@discovery"}, count = 500, time = 30,
+    ingredients = {{name = design.science and "@pack" or "automation-science-pack", amount = 1}},
+    infinite = false, effects = {}})
   gui.build(player)
 end
 
@@ -226,10 +294,13 @@ function M.on_gui_value_changed(event)
     caption = {"planet-workshop-designer.unit-" .. tags.unit, tostring(value)}
   elseif tags.pw == "tint" then
     local design = state.current(player)
-    local tint = spec.color(design.look.tint) or {r = 1, g = 1, b = 1}
+    local tint = spec.color(state.get(design, tags.path)) or {r = 1, g = 1, b = 1}
     tint[tags.channel] = math.floor(value + 0.5) / 255
-    design.look.tint = tint
+    state.set(design, tags.path, tint)
     if el.parent.pw_value then el.parent.pw_value.caption = tostring(math.floor(value + 0.5)) end
+    local holder = el.parent.parent -- the swatch is in the first row of the sliders' block
+    local first = holder and holder.children[1]
+    if first and first.pw_swatch then first.pw_swatch.caption = W.swatch_text(tint) end
     return
   else
     return
@@ -249,18 +320,24 @@ function M.on_gui_selection_state_changed(event)
     local value = nil
     if choice == "yes" then value = true elseif choice == "no" then value = false end
     M.set(player, tags.path, value, true)
+  elseif tags.pw == "ref-source" then
+    local i = el.selected_index
+    if i == 1 then
+      M.set(player, tags.path, W.GAME_DEFAULT[tags.kind], true)
+    else
+      M.set(player, tags.path, tags.refs[i - 1], true)
+    end
+  elseif tags.pw == "effect-type" then
+    local kind = production.EFFECTS[el.selected_index]
+    local effect = {type = kind}
+    if kind == "unlock-recipe" or kind == "change-recipe-productivity" then effect.recipe = "@pack" end
+    if kind == "change-recipe-productivity" then effect.change = 0.1 elseif kind ~= "unlock-recipe" then effect.modifier = 0.1 end
+    M.set(player, tags.path, effect, true)
   elseif tags.pw == "select-design" then
     ps.current = el.selected_index
     ps.confirm_delete = nil
     refresh_now(player)
   end
-end
-
-function M.on_gui_selected_tab_changed(event)
-  local el, tags, player = ours(event)
-  if not el or tags.pw ~= "tabs" then return end
-  state.player(player.index).tab = el.selected_tab_index
-  gui.build(player)
 end
 
 function M.on_gui_checked_state_changed(event)
@@ -274,6 +351,15 @@ function M.on_gui_checked_state_changed(event)
     else
       M.set(player, tags.path, el.state, true)
     end
+  elseif tags.pw == "science-on" then
+    if el.state then
+      design.science = {name = (design.name or "Planet") .. " science pack", tint = {r = 0.75, g = 0.55, b = 1},
+        base = "automation-science-pack", ingredients = {{name = "iron-plate", amount = 1}}, count = 1, time = 5,
+        category = "crafting", only_here = true, spoil_minutes = 0}
+    else
+      design.science = nil
+    end
+    gui.build(player)
   elseif tags.pw == "style" then
     local list = state.get(design, tags.path) or {}
     local kept = {}
@@ -289,6 +375,11 @@ function M.on_gui_elem_changed(event)
   local value = el.elem_value
   if tags.pw == "elem" then
     if value then M.set(player, tags.path, value, true) else gui.build(player) end
+  elseif tags.pw == "ref-elem" then
+    if type(value) == "table" then -- a signal: only items and fluids count
+      value = (value.type == nil or value.type == "item" or value.type == "fluid") and value.name or nil
+    end
+    if value then M.set(player, tags.path, value, true) else gui.build(player) end
   elseif tags.pw == "add-resource" and value then
     local design = state.current(player)
     for _, res in ipairs(design.resources) do
@@ -302,8 +393,13 @@ end
 
 function M.on_gui_text_changed(event)
   local el, tags, player = ours(event)
-  if not el or tags.pw ~= "text" then return end
-  M.set(player, tags.path, el.text, false)
+  if not el then return end
+  if tags.pw == "text" then
+    M.set(player, tags.path, el.text, false)
+  elseif tags.pw == "num" then
+    local n = tonumber(el.text)
+    if n then M.set(player, tags.path, n * (tags.scale or 1), false) end
+  end
 end
 
 function M.on_tick()
@@ -341,8 +437,8 @@ M.remote = {
     return codes.encode({state.current(game.get_player(player_index))})
   end,
   designer_designs = function() return storage.designer and storage.designer.designs end,
-  designer_tab = function(player_index, tab)
-    state.player(player_index).tab = tab
+  designer_tab = function(player_index, section) -- a section name, or its number in the sidebar
+    state.player(player_index).section = type(section) == "number" and gui.SECTIONS[section] or section
     gui.build(game.get_player(player_index))
   end,
   -- runs a GUI handler on a real element, as if the player had used it

@@ -26,8 +26,9 @@ M.RESOURCE_SLOTS = {
 --- Demolisher territory sizes (tiles); the planet's amount picks the closest.
 M.TERRITORY_RADII = {640, 480, 384, 300, 240, 190}
 
---- Stand-in ores for the designer preview (the planet's own ores only exist after a restart).
-M.PREVIEW_ORES = 8
+--- Stand-ins for the designer preview (a planet's own ores only exist after a restart): this many hidden copies
+--- of each base look (spec.ORE_BASES and spec.FLUID_BASES).
+M.PREVIEW_ORES = 4
 
 function M.control(name) return M.PREFIX .. name end
 function M.ground_control(i) return M.PREFIX .. "ground-" .. i end
@@ -38,7 +39,7 @@ function M.elevation_expression(shape, pond) return M.X .. "elevation_" .. shape
 function M.plants_expression(style) return M.X .. "plants_" .. style:gsub("%-", "_") end
 function M.rocks_expression(style) return M.X .. "rocks_" .. style:gsub("%-", "_") end
 function M.territory_expression(i) return M.X .. "territory_" .. i end
-function M.preview_ore(i) return M.PREFIX .. "ore-" .. i end
+function M.preview_ore(base, i) return M.PREFIX .. "ore-" .. base .. "-" .. i end
 
 --- Picks the territory size for an enemy amount (1 = normal).
 function M.territory_index(amount)

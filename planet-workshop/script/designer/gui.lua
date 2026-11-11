@@ -1,4 +1,4 @@
--- The Planet Designer window: a planet list and toolbar, tabs on the left, the live preview on the right, and
+-- The Planet Designer window: a planet list and toolbar, a sidebar of sections, the section, the live preview, and
 -- problems at the bottom. Every input carries tags saying what it changes (tags.path in the planet table), so
 -- one handler per event type covers them all. Changing a list (adding a ground tile, switching planets...)
 -- rebuilds the window; dragging a slider only updates its label, so dragging stays smooth.
@@ -9,10 +9,13 @@ local spec = require("__planet-workshop__.lib.spec")
 local state = require("__planet-workshop__.script.designer.state")
 local preview = require("__planet-workshop__.script.designer.preview")
 
+local W = require("__planet-workshop__.script.designer.widgets")
+local production = require("__planet-workshop__.script.designer.production")
+
 local M = {}
 
 local ROOT, CODE, IMPORT, MINI = "pw_designer", "pw_designer_code", "pw_designer_import", "pw_designer_mini"
-local LEFT_WIDTH, VIEW = 680, 540
+local LEFT_WIDTH, VIEW, SIDEBAR = W.LEFT_WIDTH, 540, 150
 
 local SHAPES = {"lakes", "big-lakes", "island", "archipelago", "continents"}
 local LIQUIDS = {"water", "lava", "oil", "ammonia", "slime", "none"}
@@ -25,88 +28,22 @@ local STARTING = {"default", "yes", "no"}
 local ASTEROIDS = {}
 for name in pairs(spec.ASTEROIDS) do ASTEROIDS[#ASTEROIDS + 1] = name end
 table.sort(ASTEROIDS)
-local TABS = {"general", "terrain", "nature", "resources", "enemies", "physics", "space", "look"}
 
-local function L(key, ...) return {"planet-workshop-designer." .. key, ...} end
-
-local function index_of(list, value)
-  for i, v in ipairs(list) do if v == value then return i end end
-  return 1
+--- The sidebar: sections in groups. (Their order is also the numbering the tests use.)
+local GROUPS = {
+  {name = "world", sections = {"general", "terrain", "nature", "resources", "enemies"}},
+  {name = "planet", sections = {"physics", "space", "look"}},
+  {name = "production", sections = {"ores", "science", "recipes", "research"}},
+}
+M.SECTIONS = {}
+for _, g in ipairs(GROUPS) do
+  for _, key in ipairs(g.sections) do M.SECTIONS[#M.SECTIONS + 1] = key end
 end
 
-local function percent(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end
+local L, index_of, row, heading, hint = W.L, W.index_of, W.row, W.heading, W.hint
+local dropdown, amount_slider, number_slider, checkbox = W.dropdown, W.amount_slider, W.number_slider, W.checkbox
 
-local function amount_index(v)
-  local best, best_d = 6, math.huge
-  for i, a in ipairs(state.AMOUNTS) do
-    if math.abs(math.log(a) - math.log(math.max(v, 0.001))) < best_d then
-      best, best_d = i, math.abs(math.log(a) - math.log(math.max(v, 0.001)))
-    end
-  end
-  return best
-end
-
--- Building blocks ---------------------------------------------------------------------------------------------
-
-local function row(parent, caption, tooltip)
-  local flow = parent.add{type = "flow", direction = "horizontal"}
-  flow.style.vertical_align = "center"
-  flow.style.horizontal_spacing = 8
-  local label = flow.add{type = "label", caption = caption, tooltip = tooltip}
-  label.style.width = 150
-  return flow
-end
-
-local function heading(parent, caption)
-  local label = parent.add{type = "label", caption = caption, style = "caption_label"}
-  label.style.top_margin = 6
-  return label
-end
-
-local function hint(parent, caption)
-  local label = parent.add{type = "label", caption = caption}
-  label.style.font_color = {0.7, 0.7, 0.7}
-  label.style.single_line = false
-  label.style.maximal_width = LEFT_WIDTH - 30
-  return label
-end
-
---- A dropdown that sets `path` to one of `values` (captions from locale `prefix`.value).
-local function dropdown(parent, caption, path, values, prefix, current, tooltip)
-  local flow = row(parent, caption, tooltip)
-  local items = {}
-  for i, v in ipairs(values) do items[i] = L(prefix .. "-" .. v) end
-  flow.add{type = "drop-down", items = items, selected_index = index_of(values, current),
-    tags = {pw = "pick", path = path, values = values}}
-  return flow
-end
-
---- A slider for an amount (17% ... 600%).
-local function amount_slider(parent, caption, path, value, tooltip)
-  local flow = row(parent, caption, tooltip)
-  local slider = flow.add{type = "slider", minimum_value = 1, maximum_value = #state.AMOUNTS, value_step = 1,
-    value = amount_index(value), discrete_slider = true, tags = {pw = "amount", path = path}}
-  slider.style.width = 200
-  flow.add{type = "label", name = "pw_value", caption = percent(value)}
-  return flow
-end
-
---- A slider for a number: shown = value * show_factor, with a unit.
-local function number_slider(parent, caption, path, value, min, max, step, unit, tooltip)
-  local flow = row(parent, caption, tooltip)
-  local slider = flow.add{type = "slider", minimum_value = min, maximum_value = max, value_step = step,
-    value = math.max(min, math.min(max, value)), tags = {pw = "number", path = path, unit = unit}}
-  slider.style.width = 200
-  flow.add{type = "label", name = "pw_value", caption = {"planet-workshop-designer.unit-" .. unit, tostring(value)}}
-  return flow
-end
-
-local function checkbox(parent, caption, path, value, tooltip)
-  return parent.add{type = "checkbox", caption = caption, state = value == true, tooltip = tooltip,
-    tags = {pw = "check", path = path}}
-end
-
--- The tabs ----------------------------------------------------------------------------------------------------
+-- The world and planet sections ----------------------------------------------------------------------------------------------------
 
 local function tab_general(c, d)
   local f = row(c, L("name"))
@@ -190,7 +127,9 @@ local function tab_resources(c, d)
     top.style.vertical_align = "center"
     local own = res.resource:sub(1, 1) == "@"
     if own then
-      top.add{type = "label", caption = res.resource}
+      local ore
+      for _, o in ipairs(d.ores or {}) do if "@ore:" .. o.key == res.resource then ore = o end end
+      top.add{type = "label", caption = ore and L("own-ore-resource", ore.name or ore.key) or res.resource}.style.width = 200
     else
       top.add{type = "choose-elem-button", elem_type = "entity", entity = res.resource,
         elem_filters = {{filter = "type", type = "resource"}}, tags = {pw = "elem", path = "resources." .. i .. ".resource"}}
@@ -267,21 +206,13 @@ local function tab_look(c, d, ps)
   end
   heading(c, L("tint"))
   checkbox(c, L("use-tint"), "look.use_tint", look.tint ~= nil)
-  if look.tint then
-    local tint = spec.color(look.tint) or {r = 1, g = 1, b = 1}
-    for _, ch in ipairs{"r", "g", "b"} do
-      local flow = row(c, L("tint-" .. ch))
-      local slider = flow.add{type = "slider", minimum_value = 0, maximum_value = 255, value_step = 1,
-        value = math.floor(tint[ch] * 255 + 0.5), tags = {pw = "tint", channel = ch}}
-      slider.style.width = 200
-      flow.add{type = "label", name = "pw_value", caption = tostring(math.floor(tint[ch] * 255 + 0.5))}
-    end
-  end
+  if look.tint then W.tint_sliders(c, "look.tint", look.tint) end
   hint(c, L("look-hint"))
 end
 
 local BUILDERS = {general = tab_general, terrain = tab_terrain, nature = tab_nature, resources = tab_resources,
-  enemies = tab_enemies, physics = tab_physics, space = tab_space, look = tab_look}
+  enemies = tab_enemies, physics = tab_physics, space = tab_space, look = tab_look,
+  ores = production.ores, science = production.science, recipes = production.recipes, research = production.research}
 
 -- The window ----------------------------------------------------------------------------------------------------
 
@@ -337,23 +268,27 @@ function M.build(player)
   tools.add{type = "button", caption = L("get-code"), tooltip = L("get-code-tooltip"), tags = {pw = "get-code"},
     style = "confirm_button_without_tooltip"}
 
-  -- body: tabs | preview
+  -- body: sidebar | section | preview
   local body = frame.add{type = "flow", name = "body", direction = "horizontal"}
-  local tabs = body.add{type = "tabbed-pane", tags = {pw = "tabs"}}
-  tabs.style.width = LEFT_WIDTH
-  for i, key in ipairs(TABS) do
-    local tab = tabs.add{type = "tab", caption = L("tab-" .. key)}
-    tab.style.left_padding = 8
-    tab.style.right_padding = 8
-    local scroll = tabs.add{type = "scroll-pane", direction = "vertical"}
-    scroll.style.height = VIEW + 40
-    scroll.style.width = LEFT_WIDTH - 24
-    local content = scroll.add{type = "flow", direction = "vertical"}
-    content.style.vertical_spacing = 6
-    tabs.add_tab(tab, scroll)
-    if i == ps.tab then BUILDERS[key](content, design, ps) end
+  local side = body.add{type = "frame", direction = "vertical", style = "inside_shallow_frame_with_padding"}
+  side.style.width = SIDEBAR
+  local section = ps.section or "general"
+  for _, g in ipairs(GROUPS) do
+    heading(side, L("group-" .. g.name))
+    for _, key in ipairs(g.sections) do
+      local button = side.add{type = "button", caption = L("tab-" .. key), tags = {pw = "section", key = key}}
+      button.style.horizontally_stretchable = true
+      button.style.height = 28
+      button.toggled = key == section
+    end
   end
-  tabs.selected_tab_index = ps.tab
+  local scroll = body.add{type = "scroll-pane", direction = "vertical", style = "naked_scroll_pane"}
+  scroll.style.height = VIEW + 40
+  scroll.style.width = LEFT_WIDTH
+  scroll.style.padding = 8
+  local content = scroll.add{type = "flow", direction = "vertical"}
+  content.style.vertical_spacing = 6
+  BUILDERS[section](content, design, ps)
 
   local right = body.add{type = "frame", name = "right", direction = "vertical", style = "inside_deep_frame"}
   local surface = game.surfaces[preview.surface_name(player.index)]

@@ -1,4 +1,17 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.0.4
+Date: 2026-11-12
+  Features:
+    - Designer production sections: the planet's own ores and fluid wells (with their look and colour), its
+      science pack (ingredients, machine, time, made only here, spoiling), its recipes, and its research (the
+      discovery's needs and cost, and its own technologies with prerequisites, cost, infinite levels and rewards).
+    - Ingredients, results and costs can be things from the game or the planet's own ore, fluid or pack.
+    - Planets can have their own fluid resources (a tinted well or vent giving the planet's own fluid).
+    - Science packs can spoil, like Gleba's.
+    - The preview shows a planet's own ores and wells in their base look.
+  Changes:
+    - The designer's sections are a sidebar in three groups (World, Planet, Production).
+---------------------------------------------------------------------------------------------------
 Version: 0.0.3
 Date: 2026-11-12
   Features:

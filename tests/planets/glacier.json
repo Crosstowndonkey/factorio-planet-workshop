@@ -42,6 +42,67 @@
     {
       "resource": "fluorine-vent",
       "starting": true
+    },
+    {
+      "resource": "@ore:cryo",
+      "starting": true
+    }
+  ],
+  "ores": [
+    {
+      "key": "cryo",
+      "kind": "fluid",
+      "name": "Cryo brine",
+      "base": "lithium-brine",
+      "tint": [
+        0.6,
+        0.9,
+        1
+      ]
+    }
+  ],
+  "science": {
+    "name": "Glacier science pack",
+    "tint": [
+      0.6,
+      0.85,
+      1
+    ],
+    "base": "cryogenic-science-pack",
+    "ingredients": [
+      [
+        "@ore:cryo",
+        20
+      ],
+      [
+        "ice",
+        2
+      ]
+    ],
+    "count": 1,
+    "time": 8,
+    "category": "chemistry",
+    "only_here": true,
+    "spoil_minutes": 30
+  },
+  "recipes": [
+    {
+      "key": "freeze",
+      "name": "Brine freezing",
+      "ingredients": [
+        [
+          "@ore:cryo",
+          20
+        ]
+      ],
+      "results": [
+        [
+          "ice",
+          2
+        ]
+      ],
+      "category": "chemistry",
+      "time": 2
     }
   ]
 }

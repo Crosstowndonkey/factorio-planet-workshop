@@ -110,7 +110,9 @@ function Builder:resolve_item(ref, where)
   if ref == "@pack" then
     if self.p.science then return {type = "item", name = self:name("pack")} end
   elseif ref:sub(1, 5) == "@ore:" then
-    if self.p.ore_keys[ref:sub(6)] then return {type = "item", name = self:name("ore", ref:sub(6))} end
+    local ore = self.p.ore_keys[ref:sub(6)]
+    if ore and ore.kind == "fluid" then return {type = "fluid", name = self:name("fluid", ref:sub(6))} end
+    if ore then return {type = "item", name = self:name("ore", ref:sub(6))} end
   elseif ref:sub(1, 1) ~= "@" then
     if find_item(ref) then return {type = "item", name = ref} end
     if data.raw.fluid[ref] then return {type = "fluid", name = ref} end
@@ -204,7 +206,6 @@ function Builder:build_ores()
   for _, ore in ipairs(self.p.ores) do
     local name = self:name("ore", ore.key)
     local base_resource = data.raw.resource[ore.base]
-    local base_item = data.raw.item[ore.base]
     local res = util.table.deepcopy(base_resource)
     res.name = name
     res.localised_name = literal(ore.name)
@@ -216,28 +217,48 @@ function Builder:build_ores()
     res.map_color = {r = ore.tint.r, g = ore.tint.g, b = ore.tint.b}
     res.mining_visualisation_tint = {r = ore.tint.r, g = ore.tint.g, b = ore.tint.b, a = 1}
     res.minable = util.table.deepcopy(base_resource.minable)
-    res.minable.result = name
-    res.minable.results = nil
     res.minable.mining_time = ore.mining_time
     res.minable.required_fluid = nil
     res.minable.fluid_amount = nil
+    res.created_effect = nil -- (Space Age's wells make Aquilo snow around themselves; ours don't)
     tint_sprites(res.stages, ore.tint)
     tint_sprites(res.stages_effect, ore.tint)
     -- Placed only where a planet's map settings ask for it (lib/mapgen.lua), never by default.
     res.autoplace = {order = "b", probability_expression = 0, richness_expression = 0}
 
-    local item = util.table.deepcopy(base_item)
-    item.name = name
-    item.localised_name = literal(ore.name)
-    item.localised_description = nil
-    item.icons = tinted(icons_of(base_item), ore.tint)
-    item.icon = nil
-    item.order = "z-pw-" .. self.p.id .. "-" .. ore.key
-    item.stack_size = ore.stack_size
-    item.factoriopedia_simulation = nil
-    if item.pictures then tint_sprites(item.pictures, ore.tint) end
-
-    data:extend{res, item}
+    if ore.kind == "fluid" then
+      -- a well or vent that gives the planet's own fluid
+      local fluid_name = self:name("fluid", ore.key)
+      local fluid = util.table.deepcopy(data.raw.fluid[spec.FLUID_BASES[ore.base]])
+      fluid.name = fluid_name
+      fluid.localised_name = literal(ore.name)
+      fluid.localised_description = nil
+      fluid.icons = tinted(icons_of(fluid), ore.tint)
+      fluid.icon = nil
+      fluid.base_color = {r = ore.tint.r * 0.6, g = ore.tint.g * 0.6, b = ore.tint.b * 0.6}
+      fluid.flow_color = {r = ore.tint.r, g = ore.tint.g, b = ore.tint.b}
+      fluid.order = "z-pw-" .. self.p.id .. "-" .. ore.key
+      fluid.factoriopedia_simulation = nil
+      fluid.auto_barrel = false
+      res.minable.result = nil
+      res.minable.results = {{type = "fluid", name = fluid_name, amount_min = 10, amount_max = 10}}
+      data:extend{res, fluid}
+    else
+      local base_item = data.raw.item[ore.base]
+      res.minable.result = name
+      res.minable.results = nil
+      local item = util.table.deepcopy(base_item)
+      item.name = name
+      item.localised_name = literal(ore.name)
+      item.localised_description = nil
+      item.icons = tinted(icons_of(base_item), ore.tint)
+      item.icon = nil
+      item.order = "z-pw-" .. self.p.id .. "-" .. ore.key
+      item.stack_size = ore.stack_size
+      item.factoriopedia_simulation = nil
+      if item.pictures then tint_sprites(item.pictures, ore.tint) end
+      data:extend{res, item}
+    end
   end
 end
 
@@ -260,6 +281,10 @@ function Builder:build_science()
   item.order = "z[pw-" .. self.p.id .. "]"
   item.factoriopedia_simulation = nil
   if item.pictures then tint_sprites(item.pictures, s.tint) end
+  if s.spoil_minutes > 0 then -- spoils like Gleba's agricultural science pack
+    item.spoil_ticks = math.floor(s.spoil_minutes * 3600)
+    item.spoil_result = data.raw.item.spoilage and "spoilage" or nil
+  end
 
   local results = {{type = "item", name = name, amount = s.count}}
   data:extend{

@@ -25,6 +25,9 @@ M.ASTEROIDS = {
 }
 --- Vanilla ores a custom ore can take its look from.
 M.ORE_BASES = {["iron-ore"] = true, ["copper-ore"] = true, ["stone"] = true, ["coal"] = true, ["uranium-ore"] = true}
+--- Vanilla fluid resources a planet's own fluid resource can take its look from, and the fluid each one gives.
+M.FLUID_BASES = {["crude-oil"] = "crude-oil", ["sulfuric-acid-geyser"] = "sulfuric-acid",
+  ["lithium-brine"] = "lithium-brine", ["fluorine-vent"] = "fluorine"}
 --- Bonus effects a planet technology may give (besides unlocking its recipes).
 M.MODIFIERS = {
   ["mining-drill-productivity-bonus"] = true, ["worker-robot-speed"] = true, ["laboratory-speed"] = true,
@@ -214,11 +217,14 @@ function M.normalize(raw, problems)
     if not k or p.ore_keys[k] then
       problem(problems, "bad-entry", "ore")
     else
+      -- kind "solid": an ore (resource + item); kind "fluid": a well/vent (resource + fluid), like crude oil
+      local fluid = ore.kind == "fluid"
       local o = {
         key = k,
-        name = text(ore.name, M.LIMITS.name, "Ore"),
+        kind = fluid and "fluid" or "solid",
+        name = text(ore.name, M.LIMITS.name, fluid and "Fluid" or "Ore"),
         tint = M.color(ore.tint) or {r = 1, g = 1, b = 1},
-        base = M.ORE_BASES[ore.base] and ore.base or "iron-ore",
+        base = fluid and (M.FLUID_BASES[ore.base] and ore.base or "crude-oil") or (M.ORE_BASES[ore.base] and ore.base or "iron-ore"),
         mining_time = number(ore.mining_time, 0.1, 20, 1),
         stack_size = math.floor(number(ore.stack_size, 1, 1000, 50)),
       }
@@ -255,6 +261,7 @@ function M.normalize(raw, problems)
       time = number(s.time, 0.1, 600, 5),
       category = ref(s.category) or "crafting",
       only_here = s.only_here ~= false,
+      spoil_minutes = number(s.spoil_minutes, 0, 600, 0), -- 0: never spoils
     }
   end
 
