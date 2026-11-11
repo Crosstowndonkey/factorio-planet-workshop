@@ -1,0 +1,50 @@
+{
+  "id": "verd0005",
+  "name": "Verdant",
+  "author": "Tester",
+  "terrain": {
+    "shape": "island",
+    "liquid": "water",
+    "ground": [
+      {
+        "tile": "grass-1",
+        "share": 2
+      },
+      {
+        "tile": "grass-2",
+        "share": 1
+      },
+      {
+        "tile": "midland-turquoise-bark",
+        "share": 1
+      }
+    ],
+    "plants": {
+      "styles": [
+        "forest"
+      ],
+      "amount": 2
+    },
+    "cliffs": {
+      "style": "none"
+    }
+  },
+  "enemies": {
+    "kind": "biters",
+    "amount": 2
+  },
+  "resources": [
+    {
+      "resource": "iron-ore"
+    },
+    {
+      "resource": "copper-ore"
+    },
+    {
+      "resource": "coal"
+    },
+    {
+      "resource": "stone"
+    }
+  ]
+}

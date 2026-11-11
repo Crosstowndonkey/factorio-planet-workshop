@@ -13,6 +13,8 @@
 --
 -- Works in both stages (no game API needed).
 
+local catalog = require("__planet-workshop__.lib.catalog")
+
 local M = {}
 
 M.PICTURES = {nauvis = true, vulcanus = true, gleba = true, fulgora = true, aquilo = true}
@@ -132,10 +134,13 @@ function M.normalize(raw, problems)
     author = text(raw.author, M.LIMITS.author, nil),
   }
 
+  -- "auto" picture: the vanilla planet closest in colour to the ground (see catalog.closest_picture);
+  -- "auto" sky (lighting, colour grading, ambient sound): the home planet of most of the ground.
   local look = type(raw.look) == "table" and raw.look or {}
   p.look = {
-    picture = M.PICTURES[look.picture] and look.picture or "nauvis",
+    picture = M.PICTURES[look.picture] and look.picture or "auto",
     tint = M.color(look.tint),
+    sky = M.PICTURES[look.sky] and look.sky or "auto",
   }
 
   local space = type(raw.space) == "table" and raw.space or {}
@@ -155,13 +160,52 @@ function M.normalize(raw, problems)
     magnetic_field = number(physics.magnetic_field, 0, 1000, 90),
     solar_power = number(physics.solar_power, 0, 1000, 100),
     day_length = number(physics.day_length, 0.5, 120, 7), -- minutes
+    freezing = physics.freezing == true, -- buildings need heat, like on Aquilo
+    lightning = physics.lightning == true, -- lightning storms, like on Fulgora
   }
 
   local terrain = type(raw.terrain) == "table" and raw.terrain or {}
-  p.terrain = {tiles = {}}
-  for _, tile in ipairs(list(terrain.tiles)) do
-    if ref(tile) then p.terrain.tiles[#p.terrain.tiles + 1] = tile end
+  p.terrain = {
+    shape = catalog.SHAPES[terrain.shape] and terrain.shape or "lakes",
+    liquid = catalog.LIQUIDS[terrain.liquid] and terrain.liquid or "water",
+    liquid_amount = number(terrain.liquid_amount, 1 / 6, 6, 1),
+    patch_size = number(terrain.patch_size, 0.25, 4, 1),
+    decorations = terrain.decorations ~= false,
+    ground = {},
+  }
+  -- ground: a list of {tile = name, share = n} (a plain tile name counts as share 1). Codes from 0.0.1 had
+  -- `tiles` instead; they still work.
+  for _, entry in ipairs(list(terrain.ground or terrain.tiles)) do
+    local tile, share = entry, 1
+    if type(entry) == "table" then tile, share = entry.tile or entry[1], entry.share or entry[2] end
+    if ref(tile) and #p.terrain.ground < 12 then
+      p.terrain.ground[#p.terrain.ground + 1] = {tile = tile, share = number(share, 0.1, 100, 1)}
+    else
+      problem(problems, "bad-entry", "ground tile")
+    end
   end
+  local function style_amount(value, styles, multi, default_style)
+    value = type(value) == "table" and value or {}
+    local out = {amount = number(value.amount, 0, 6, 1)}
+    if multi then
+      out.styles = {}
+      for _, name in ipairs(list(value.styles)) do
+        if styles[name] then out.styles[#out.styles + 1] = name end
+      end
+    else
+      out.style = styles[value.style] ~= nil and value.style or default_style
+    end
+    return out
+  end
+  p.terrain.cliffs = style_amount(terrain.cliffs, catalog.CLIFFS, false, "none")
+  p.terrain.plants = style_amount(terrain.plants, catalog.PLANTS, true)
+  p.terrain.rocks = style_amount(terrain.rocks, catalog.ROCKS, true)
+
+  local enemies = type(raw.enemies) == "table" and raw.enemies or {}
+  p.enemies = {
+    kind = catalog.ENEMIES[enemies.kind] and enemies.kind or "none",
+    amount = number(enemies.amount, 1 / 6, 6, 1),
+  }
 
   -- Ores first: resources and recipes refer to them.
   p.ores, p.ore_keys = {}, {}
@@ -194,7 +238,8 @@ function M.normalize(raw, problems)
         frequency = number(res.frequency, 0.1, 6, 1),
         size = number(res.size, 0.1, 6, 1),
         richness = number(res.richness, 0.1, 6, 1),
-        starting = res.starting ~= false,
+        -- "yes" / "no" / "default" (default: solids get a patch near the landing spot, fluids don't)
+        starting = res.starting == true and "yes" or res.starting == false and "no" or "default",
       }
     end
   end

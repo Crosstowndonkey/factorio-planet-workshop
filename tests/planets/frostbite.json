@@ -3,27 +3,126 @@
   "name": "Frostbite",
   "author": "Tester",
   "description": "A test planet full of mistakes: things that don't exist must be left out, not crash the game.",
-  "look": {"picture": "aquilo", "tint": {"r": 0.7, "g": 0.9, "b": 1}},
-  "space": {"from": "no-such-planet", "length": 99999999, "distance": -5, "asteroids": "made-up-route"},
-  "physics": {"gravity": "heavy", "pressure": 300},
-  "terrain": {"tiles": ["snow-made-up", "sand-1", "sand-2"]},
+  "look": {
+    "picture": "aquilo",
+    "tint": {
+      "r": 0.7,
+      "g": 0.9,
+      "b": 1
+    }
+  },
+  "space": {
+    "from": "no-such-planet",
+    "length": 99999999,
+    "distance": -5,
+    "asteroids": "made-up-route"
+  },
+  "physics": {
+    "gravity": "heavy",
+    "pressure": 300
+  },
+  "terrain": {
+    "shape": "volcano",
+    "liquid": "mercury",
+    "ground": [
+      "snow-made-up",
+      "sand-1",
+      {
+        "tile": "sand-2",
+        "share": "lots"
+      },
+      5
+    ],
+    "cliffs": {
+      "style": "made-up"
+    },
+    "plants": {
+      "styles": [
+        "triffids"
+      ]
+    }
+  },
   "resources": [
-    {"resource": "unobtainium-ore"},
-    {"resource": "@ore:nope"},
-    {"resource": "coal", "richness": 99}
+    {
+      "resource": "unobtainium-ore"
+    },
+    {
+      "resource": "@ore:nope"
+    },
+    {
+      "resource": "coal",
+      "richness": 99
+    }
   ],
   "science": {
-    "name": "Frostbite science pack", "base": "no-such-pack",
-    "ingredients": [["unobtainium", 1], ["copper-plate", 3], "not a list"]
+    "name": "Frostbite science pack",
+    "base": "no-such-pack",
+    "ingredients": [
+      [
+        "unobtainium",
+        1
+      ],
+      [
+        "copper-plate",
+        3
+      ],
+      "not a list"
+    ]
   },
-  "discovery": {"prerequisites": ["no-such-tech"], "count": 10,
-                "ingredients": [["iron-plate", 1], ["automation-science-pack", 1]]},
+  "discovery": {
+    "prerequisites": [
+      "no-such-tech"
+    ],
+    "count": 10,
+    "ingredients": [
+      [
+        "iron-plate",
+        1
+      ],
+      [
+        "automation-science-pack",
+        1
+      ]
+    ]
+  },
   "recipes": [
-    {"key": "nothing", "ingredients": [["coal", 1]], "results": [["unobtainium", 1]]},
-    {"key": "BAD KEY"}
+    {
+      "key": "nothing",
+      "ingredients": [
+        [
+          "coal",
+          1
+        ]
+      ],
+      "results": [
+        [
+          "unobtainium",
+          1
+        ]
+      ]
+    },
+    {
+      "key": "BAD KEY"
+    }
   ],
   "technologies": [
-    {"key": "t1", "prerequisites": ["no-such-tech"], "effects": [{"type": "unlock-recipe", "recipe": "@recipe:nothing"},
-      {"type": "explode-everything"}]}
-  ]
+    {
+      "key": "t1",
+      "prerequisites": [
+        "no-such-tech"
+      ],
+      "effects": [
+        {
+          "type": "unlock-recipe",
+          "recipe": "@recipe:nothing"
+        },
+        {
+          "type": "explode-everything"
+        }
+      ]
+    }
+  ],
+  "enemies": {
+    "kind": "dragons"
+  }
 }

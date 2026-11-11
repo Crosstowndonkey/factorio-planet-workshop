@@ -1,0 +1,43 @@
+{
+  "id": "bloo0006",
+  "name": "Bloom",
+  "author": "Tester",
+  "terrain": {
+    "shape": "big-lakes",
+    "liquid": "slime",
+    "ground": [
+      {
+        "tile": "lowland-olive-blubber",
+        "share": 1
+      },
+      {
+        "tile": "midland-yellow-crust",
+        "share": 1
+      }
+    ],
+    "plants": {
+      "styles": [
+        "gleba-plants"
+      ],
+      "amount": 1
+    },
+    "rocks": {
+      "styles": [
+        "stromatolites"
+      ],
+      "amount": 1
+    }
+  },
+  "enemies": {
+    "kind": "pentapods",
+    "amount": 2
+  },
+  "resources": [
+    {
+      "resource": "stone"
+    },
+    {
+      "resource": "iron-ore"
+    }
+  ]
+}

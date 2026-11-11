@@ -3,34 +3,198 @@
   "name": "Brimstone",
   "author": "Crosstowndonkey",
   "description": "A test planet: red sand, lakes and yellow sulfite ore.",
-  "look": {"picture": "vulcanus", "tint": [1, 0.85, 0.5]},
-  "space": {"from": "nauvis", "length": 12000, "distance": 22, "orientation": 0.42, "asteroids": "nauvis_vulcanus"},
-  "physics": {"gravity": 12, "pressure": 1500, "magnetic_field": 40, "solar_power": 150, "day_length": 4},
-  "terrain": {"tiles": ["red-desert-0", "red-desert-1", "red-desert-2", "red-desert-3", "water", "deepwater"]},
+  "look": {
+    "picture": "auto",
+    "tint": [
+      1,
+      0.85,
+      0.5
+    ]
+  },
+  "space": {
+    "from": "nauvis",
+    "length": 12000,
+    "distance": 22,
+    "orientation": 0.42,
+    "asteroids": "nauvis_vulcanus"
+  },
+  "physics": {
+    "gravity": 12,
+    "pressure": 1500,
+    "magnetic_field": 40,
+    "solar_power": 150,
+    "day_length": 4
+  },
+  "terrain": {
+    "shape": "lakes",
+    "liquid": "water",
+    "ground": [
+      {
+        "tile": "red-desert-0",
+        "share": 3
+      },
+      {
+        "tile": "sand-1",
+        "share": 1
+      }
+    ],
+    "cliffs": {
+      "style": "nauvis",
+      "amount": 1
+    },
+    "plants": {
+      "styles": [
+        "dry-trees"
+      ],
+      "amount": 1
+    },
+    "rocks": {
+      "styles": [
+        "rocks"
+      ],
+      "amount": 1
+    }
+  },
   "ores": [
-    {"key": "sulfite", "name": "Sulfite ore", "tint": [255, 230, 50], "base": "copper-ore", "mining_time": 1.5}
+    {
+      "key": "sulfite",
+      "name": "Sulfite ore",
+      "tint": [
+        255,
+        230,
+        50
+      ],
+      "base": "iron-ore",
+      "mining_time": 1.5
+    }
   ],
   "resources": [
-    {"resource": "@ore:sulfite", "size": 1.5},
-    {"resource": "iron-ore"},
-    {"resource": "stone"}
+    {
+      "resource": "@ore:sulfite",
+      "size": 1.5
+    },
+    {
+      "resource": "iron-ore"
+    },
+    {
+      "resource": "stone"
+    },
+    {
+      "resource": "crude-oil"
+    }
   ],
   "science": {
-    "name": "Brimstone science pack", "tint": [1, 0.8, 0.1], "base": "chemical-science-pack",
-    "ingredients": [["@ore:sulfite", 5], ["iron-plate", 2]], "count": 1, "time": 10, "only_here": true
+    "name": "Brimstone science pack",
+    "tint": [
+      1,
+      0.8,
+      0.1
+    ],
+    "base": "chemical-science-pack",
+    "ingredients": [
+      [
+        "@ore:sulfite",
+        5
+      ],
+      [
+        "iron-plate",
+        2
+      ]
+    ],
+    "count": 1,
+    "time": 10,
+    "only_here": true
   },
   "recipes": [
-    {"key": "smelt", "name": "Sulfite smelting", "ingredients": [["@ore:sulfite", 2]], "results": [["sulfur", 1]],
-     "category": "smelting", "time": 3.2},
-    {"key": "acid", "ingredients": [["@ore:sulfite", 5], ["water", 50]], "results": [["sulfuric-acid", 50]],
-     "category": "chemistry", "time": 1, "only_here": true}
+    {
+      "key": "smelt",
+      "name": "Sulfite smelting",
+      "ingredients": [
+        [
+          "@ore:sulfite",
+          2
+        ]
+      ],
+      "results": [
+        [
+          "sulfur",
+          1
+        ]
+      ],
+      "category": "smelting",
+      "time": 3.2
+    },
+    {
+      "key": "acid",
+      "ingredients": [
+        [
+          "@ore:sulfite",
+          5
+        ],
+        [
+          "water",
+          50
+        ]
+      ],
+      "results": [
+        [
+          "sulfuric-acid",
+          50
+        ]
+      ],
+      "category": "chemistry",
+      "time": 1,
+      "only_here": true
+    }
   ],
   "technologies": [
-    {"key": "acid", "name": "Sulfite acid", "icon": "sulfuric-acid", "count": 200, "time": 30,
-     "ingredients": [["automation-science-pack", 1], ["@pack", 1]],
-     "effects": [{"type": "unlock-recipe", "recipe": "@recipe:acid"}]},
-    {"key": "prod", "name": "Sulfite mining", "infinite": true, "count": 500, "prerequisites": ["@tech:acid"],
-     "ingredients": [["@pack", 1], ["space-science-pack", 1]],
-     "effects": [{"type": "mining-drill-productivity-bonus", "modifier": 0.05}]}
+    {
+      "key": "acid",
+      "name": "Sulfite acid",
+      "icon": "sulfuric-acid",
+      "count": 200,
+      "time": 30,
+      "ingredients": [
+        [
+          "automation-science-pack",
+          1
+        ],
+        [
+          "@pack",
+          1
+        ]
+      ],
+      "effects": [
+        {
+          "type": "unlock-recipe",
+          "recipe": "@recipe:acid"
+        }
+      ]
+    },
+    {
+      "key": "prod",
+      "name": "Sulfite mining",
+      "infinite": true,
+      "count": 500,
+      "prerequisites": [
+        "@tech:acid"
+      ],
+      "ingredients": [
+        [
+          "@pack",
+          1
+        ],
+        [
+          "space-science-pack",
+          1
+        ]
+      ],
+      "effects": [
+        {
+          "type": "mining-drill-productivity-bonus",
+          "modifier": 0.05
+        }
+      ]
+    }
   ]
 }

@@ -1,0 +1,36 @@
+{
+  "id": "dust0007",
+  "name": "Dustbowl",
+  "author": "Tester",
+  "physics": {
+    "lightning": true
+  },
+  "terrain": {
+    "shape": "lakes",
+    "liquid": "none",
+    "ground": [
+      {
+        "tile": "fulgoran-sand",
+        "share": 1
+      },
+      {
+        "tile": "fulgoran-dunes",
+        "share": 1
+      }
+    ],
+    "rocks": {
+      "styles": [
+        "ruins"
+      ],
+      "amount": 2
+    }
+  },
+  "resources": [
+    {
+      "resource": "scrap"
+    },
+    {
+      "resource": "stone"
+    }
+  ]
+}

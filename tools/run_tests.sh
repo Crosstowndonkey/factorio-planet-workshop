@@ -1,12 +1,12 @@
 #!/bin/bash
 # Runs the test suites headless in a throwaway folder (never touches ~/.factorio).
-# Usage: tools/run_tests.sh [suite ...]      suites: bridge codec added (default: all)
+# Usage: tools/run_tests.sh [suite ...]      suites: bridge terrain codec added (default: all)
 # FACTORIO=/path/to/factorio overrides the game binary. KEEP=1 keeps the throwaway folder (its path is printed).
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FACTORIO="${FACTORIO:-/mnt/GamingSSD/SteamLibrary/steamapps/common/Factorio/bin/x64/factorio}"
 SUITES=("$@")
-[ ${#SUITES[@]} -eq 0 ] && SUITES=(bridge codec added)
+[ ${#SUITES[@]} -eq 0 ] && SUITES=(bridge terrain codec added)
 WORK="$(mktemp -d)"
 if [ -n "$KEEP" ]; then echo "(work folder: $WORK)"; else trap 'rm -rf "$WORK"' EXIT; fi
 mkdir -p "$WORK/mods" "$WORK/write"
@@ -15,7 +15,9 @@ ln -s "$ROOT/tests/pw-tests" "$WORK/mods/pw-tests"
 # pw-codes is copied, not linked: the codes file is written into it
 mkdir -p "$WORK/mods/pw-codes"
 \cp -f "$ROOT/tests/pw-codes/"* "$WORK/mods/pw-codes/"
-python3 "$ROOT/tools/make_code.py" --each "$ROOT/tests/planets/brimstone.json" "$ROOT/tests/planets/frostbite.json" \
+python3 "$ROOT/tools/make_code.py" --each "$ROOT"/tests/planets/brimstone.json "$ROOT"/tests/planets/frostbite.json \
+  "$ROOT"/tests/planets/glacier.json "$ROOT"/tests/planets/cinder.json "$ROOT"/tests/planets/verdant.json \
+  "$ROOT"/tests/planets/bloom.json "$ROOT"/tests/planets/dustbowl.json "$ROOT"/tests/planets/pond.json \
   --extra "PW1:bm90IGEgcmVhbCBjb2Rl" --extra "PW9:AAAA" --lua "$WORK/mods/pw-codes/codes.lua"
 
 mod_list() {  # mod_list <true|false: load the test codes>
@@ -48,7 +50,7 @@ for suite in "${SUITES[@]}"; do
     [ -f "$WORK/map.zip" ] || run --create "$WORK/map.zip" > "$WORK/create.log" 2>&1 || { tail -40 "$WORK/create.log"; exit 1; }
     \cp -f "$WORK/map.zip" "$WORK/$suite.zip"
   fi
-  run --test-save "$WORK/$suite.zip" --test-ticks 1500 --test-arg "$suite" > "$WORK/$suite.log" 2>&1 || true
+  run --test-save "$WORK/$suite.zip" --test-ticks 3000 --test-arg "$suite" > "$WORK/$suite.log" 2>&1 || true
   report "$WORK/$suite.log"
   grep -q "STA $suite: .* 0 failed" "$WORK/$suite.log" || FAILED=1
 done

@@ -1,0 +1,47 @@
+{
+  "id": "glac0003",
+  "name": "Glacier",
+  "author": "Tester",
+  "look": {},
+  "physics": {
+    "freezing": true,
+    "pressure": 300,
+    "gravity": 15
+  },
+  "terrain": {
+    "shape": "archipelago",
+    "liquid": "ammonia",
+    "liquid_amount": 1.5,
+    "ground": [
+      {
+        "tile": "snow-flat",
+        "share": 2
+      },
+      {
+        "tile": "ice-smooth",
+        "share": 1
+      }
+    ],
+    "rocks": {
+      "styles": [
+        "icebergs"
+      ],
+      "amount": 2
+    }
+  },
+  "resources": [
+    {
+      "resource": "iron-ore"
+    },
+    {
+      "resource": "copper-ore"
+    },
+    {
+      "resource": "lithium-brine"
+    },
+    {
+      "resource": "fluorine-vent",
+      "starting": true
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "id": "cind0004",
+  "name": "Cinder",
+  "author": "Tester",
+  "physics": {
+    "pressure": 4000,
+    "gravity": 40
+  },
+  "terrain": {
+    "shape": "continents",
+    "liquid": "lava",
+    "ground": [
+      {
+        "tile": "volcanic-ash-dark",
+        "share": 1
+      },
+      {
+        "tile": "volcanic-cracks",
+        "share": 1
+      }
+    ],
+    "cliffs": {
+      "style": "vulcanus",
+      "amount": 2
+    },
+    "plants": {
+      "styles": [
+        "lichen"
+      ],
+      "amount": 1
+    },
+    "rocks": {
+      "styles": [
+        "volcanic-rocks"
+      ],
+      "amount": 1
+    }
+  },
+  "enemies": {
+    "kind": "demolishers",
+    "amount": 2
+  },
+  "resources": [
+    {
+      "resource": "tungsten-ore"
+    },
+    {
+      "resource": "calcite"
+    },
+    {
+      "resource": "coal"
+    },
+    {
+      "resource": "sulfuric-acid-geyser",
+      "starting": true
+    }
+  ]
+}

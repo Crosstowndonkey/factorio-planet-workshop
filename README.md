@@ -3,9 +3,10 @@
 A Factorio 2.1 + Space Age mod: design your own planets in an in-game Planet Designer, then add them to any Space
 Age save and share them with other players as **planet codes** (like blueprint strings).
 
-**Status: step 0 (proof of concept) is done.** A planet code pasted into the mod's startup setting becomes a real
+**Status: step 1 (planet generation) is done.** A planet code pasted into the mod's startup setting becomes a real
 planet: you can research it, fly to it, and mine its own ore, and it comes with its own science pack, recipes and
-technologies. The designer GUI comes later (see the plan below).
+technologies. Its terrain, liquid, cliffs, plants, rocks, enemies, physics and look all come from the code. The
+designer GUI comes next.
 
 ## How planet codes work
 
@@ -30,12 +31,13 @@ default, and `tests/planets/brimstone.json` for a full example):
 |---|---|
 | `id` | 4-16 lower-case letters/digits, unique per planet; every prototype is named `pw-<id>-...` |
 | `name`, `description`, `author` | shown in game |
-| `look` | `picture` (nauvis / vulcanus / gleba / fulgora / aquilo) and `tint` |
+| `look` | `picture` and `sky` (nauvis / vulcanus / gleba / fulgora / aquilo, or `auto`), and `tint` |
 | `space` | `from` (the planet the route starts at), `length` (km), star-map `distance` / `orientation` / `magnitude`, `asteroids` (a Space Age route's mix) |
-| `physics` | `gravity`, `pressure`, `magnetic_field`, `solar_power`, `day_length` (minutes) |
-| `terrain` | `tiles`: the ground tiles that may generate |
+| `physics` | `gravity`, `pressure`, `magnetic_field`, `solar_power`, `day_length` (minutes), `freezing`, `lightning` |
+| `terrain` | `shape` (lakes / big-lakes / island / archipelago / continents), `liquid` (water / lava / oil / ammonia / slime / none) and `liquid_amount`, `ground` (`{tile, share}` list) and `patch_size`, `cliffs` (`style`, `amount`), `plants` and `rocks` (`styles` list, `amount`), `decorations` |
+| `enemies` | `kind` (none / biters / pentapods / demolishers) and `amount` |
 | `ores` | the planet's own ores: `key`, `name`, `tint`, `base` (vanilla ore to look like), `mining_time`, `stack_size` |
-| `resources` | what generates: `resource` (a resource or `@ore:<key>`), `frequency`, `size`, `richness` |
+| `resources` | what generates: `resource` (a resource or `@ore:<key>`), `frequency`, `size`, `richness`, `starting` (solids default to a patch near the landing spot) |
 | `science` | its science pack: `name`, `tint`, `base` (pack to look like), `ingredients`, `count`, `time`, `category`, `only_here` |
 | `discovery` | the discovery technology's `prerequisites`, `count`, `time`, `ingredients` |
 | `recipes` | `key`, `name`, `ingredients`, `results`, `category`, `time`, `only_here`, `enabled` |
@@ -45,13 +47,33 @@ References to the planet's own things start with `@`: `@pack`, `@ore:<key>`, `@r
 `@discovery`. Anything else names a vanilla or modded prototype. "Only here" recipes use a hidden surface property
 `pw-<id>-here` that only that planet has.
 
+## How a planet's world is generated
+
+`prototypes/terrain.lua` gives every planet its own named noise expressions (`pw_<id>_...`) and points its map
+settings at them, so no other planet changes. The choices live in `lib/catalog.lua`.
+
+- **Land:** the vanilla shapes reuse the game's elevation (with its starting lake); archipelago and continents are
+  ours, calibrated by measurement (archipelagos about 60% sea, continents about 30%), with ragged land around the
+  landing spot and, on water planets, a starting pond. The liquid amount slider is the game's water control.
+- **Ground:** each tile gets its own patch noise and the highest wins, so tiles from different planets mix
+  naturally and each tile's share sets how much of the land it covers.
+- **Resources:** all of a planet's resources share the planet's own patch set, so each starting resource gets a
+  patch near the landing spot, like Nauvis' starting ores. `script/starting.lua` checks the first time a planet is
+  visited and adds a small patch if a seed buried one (e.g. under lava).
+- **Picture:** the planet that half or more of the ground comes from; otherwise the closest colour to each vanilla
+  planet's own ground. **Sky:** the home planet of most of the ground.
+- Things worth knowing: Space Age's oil wells, lithium brine and fluorine vents make snow and ice around themselves
+  on icy ground; pentapod nests can only stand in shallow swamp, which is why slime has wide wetlands.
+
 ## Developing
 
-- `tools/run_tests.sh [bridge codec added]` runs the headless test suites in a throwaway folder (never
+- `tools/run_tests.sh [bridge terrain codec added]` runs the headless test suites in a throwaway folder (never
   `~/.factorio`). `KEEP=1` keeps the folder for reading logs.
-  - **bridge**: two test planets (Brimstone, and Frostbite, which is full of mistakes) plus a broken code and a
+  - **bridge**: the test planets (including Frostbite, which is full of mistakes) plus a broken code and a
     too-new code, loaded into a new game: prototypes, generated terrain and ore, research, and real assemblers
     showing the pack is only made on its planet.
+  - **terrain**: eight test planets' generated worlds: land shapes, ground shares, liquids, cliffs, plants, rocks,
+    enemies, pictures and skies, starting resources on several seeds, and the safety net on a buried seed.
   - **codec**: codes made in game with `helpers.encode_string` read back by the mod's decoder; a 1.5 MB planet;
     428 damaged or cut codes that must fail politely; JSON edge cases.
   - **added**: the codes added to a save that was made without them.

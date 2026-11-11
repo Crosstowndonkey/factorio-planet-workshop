@@ -1,5 +1,16 @@
--- Runtime: tells players about planet codes that couldn't be fully loaded, and adds the /planet-workshop
--- command that lists the loaded planets.
+-- Runtime: tells players about planet codes that couldn't be fully loaded, adds the /planet-workshop command
+-- that lists the loaded planets, and runs the starting-resources safety net (script/starting.lua).
+
+local starting = require("script.starting")
+
+script.on_event(defines.events.on_surface_created, starting.on_surface_created)
+
+-- For tests and other mods: remote.call("planet-workshop", "ensure_start", surface_index, planet_name)
+remote.add_interface("planet-workshop", {
+  ensure_start = function(surface_index, planet_name)
+    return starting.ensure(game.surfaces[surface_index], planet_name)
+  end,
+})
 
 local function report()
   local proto = prototypes.mod_data["planet-workshop-report"]

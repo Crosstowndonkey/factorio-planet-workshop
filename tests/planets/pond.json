@@ -1,0 +1,8 @@
+{
+  "id": "pond0008",
+  "name": "Pond",
+  "author": "Tester",
+  "terrain": {"shape": "continents", "liquid": "water", "liquid_amount": 0.5,
+              "ground": [{"tile": "grass-1", "share": 1}, {"tile": "dirt-4", "share": 1}]},
+  "resources": [{"resource": "iron-ore"}]
+}

@@ -1,4 +1,17 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.0.2
+Date: 2026-11-12
+  Features:
+    - Terrain: land shapes (lakes, big lakes, island, archipelago, continents), a liquid (water, lava, oil,
+      ammonia, slime or none) with an amount, and any mix of natural ground tiles from any planet, each with a share.
+    - Cliffs, plants and rocks in vanilla styles with an amount; decorations from the ground's home planets.
+    - Enemies: biters, pentapods (they nest in the swamps) or demolishers, with an amount and matching pollution.
+    - Physics: freezing (buildings need heat) and lightning storms.
+    - Look: the planet's picture is chosen automatically (the planet most of the ground comes from, otherwise the
+      closest colour), and the sky (lighting and ambient sound) separately.
+    - Every starting resource gets a patch near the landing spot (each planet has its own patch set), with a
+      safety net that adds a small patch if a seed buries one.
+---------------------------------------------------------------------------------------------------
 Version: 0.0.1
 Date: 2026-11-12
   Features:

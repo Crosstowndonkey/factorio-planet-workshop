@@ -7,9 +7,9 @@
 -- The problems and a summary of the loaded planets go to runtime in the "planet-workshop-report" mod-data.
 
 local util = require("util")
-local resource_autoplace = require("resource-autoplace")
 local asteroid_util = require("__space-age__.prototypes.planet.asteroid-spawn-definitions")
 local spec = require("__planet-workshop__.lib.spec")
+local terrain = require("__planet-workshop__.prototypes.terrain")
 
 local M = {}
 
@@ -200,7 +200,6 @@ end
 -- The parts -------------------------------------------------------------------------------------------------
 
 function Builder:build_ores()
-  local set = "pw_" .. self.p.id -- used as a bare name inside noise expressions, so no dashes
   for _, ore in ipairs(self.p.ores) do
     local name = self:name("ore", ore.key)
     local base_resource = data.raw.resource[ore.base]
@@ -223,16 +222,8 @@ function Builder:build_ores()
     res.minable.fluid_amount = nil
     tint_sprites(res.stages, ore.tint)
     tint_sprites(res.stages_effect, ore.tint)
-    res.autoplace = resource_autoplace.resource_autoplace_settings{
-      name = name,
-      autoplace_set_name = set, -- the planet's own patch set: Nauvis' ore patches stay exactly as they were
-      order = "b",
-      base_density = 8,
-      has_starting_area_placement = true,
-      regular_rq_factor_multiplier = 1.1,
-      starting_rq_factor_multiplier = 1.5,
-      candidate_spot_count = 22,
-    }
+    -- Placed only where a planet's map settings ask for it (prototypes/terrain.lua), never by default.
+    res.autoplace = {order = "b", probability_expression = 0, richness_expression = 0}
 
     local item = util.table.deepcopy(base_item)
     item.name = name
@@ -245,17 +236,7 @@ function Builder:build_ores()
     item.factoriopedia_simulation = nil
     if item.pictures then tint_sprites(item.pictures, ore.tint) end
 
-    data:extend{
-      res, item,
-      {
-        type = "autoplace-control",
-        name = name,
-        localised_name = literal(ore.name),
-        category = "resource",
-        richness = true,
-        order = "z-pw-" .. self.p.id .. "-" .. ore.key,
-      },
-    }
+    data:extend{res, item}
   end
 end
 
@@ -356,7 +337,7 @@ function Builder:build_technologies()
       icons = proto and icons_of(proto)
     end
     if not icons then
-      icons = tinted({util.table.deepcopy(PICTURE_TECH_ICON[self.p.look.picture])}, self.p.look.tint)
+      icons = tinted({util.table.deepcopy(PICTURE_TECH_ICON[self.picture])}, self.p.look.tint)
     end
 
     data:extend{{
@@ -395,7 +376,7 @@ function Builder:build_discovery()
   if #prerequisites == 0 and data.raw.technology["space-platform-thruster"] then
     prerequisites = {"space-platform-thruster"}
   end
-  local pic = util.table.deepcopy(PICTURE_TECH_ICON[self.p.look.picture])
+  local pic = util.table.deepcopy(PICTURE_TECH_ICON[self.picture])
   local icons = tinted({pic}, self.p.look.tint)
   icons[#icons + 1] = {
     icon = "__core__/graphics/icons/technology/constants/constant-planet.png",
@@ -415,70 +396,16 @@ function Builder:build_discovery()
   }}
 end
 
-function Builder:map_gen_settings()
-  local mgs = {
-    property_expression_names = {},
-    cliff_settings = {name = "cliff", cliff_elevation_0 = 10, cliff_elevation_interval = 40, richness = 0},
-    autoplace_controls = {},
-    autoplace_settings = {
-      tile = {settings = {}},
-      decorative = {settings = {}},
-      entity = {settings = {}},
-    },
-  }
-  local tiles = 0
-  for _, name in ipairs(self.p.terrain.tiles) do
-    local tile = data.raw.tile[name]
-    if not tile then
-      self:problem("missing", name, "ground")
-    elseif not tile.autoplace then
-      self:problem("cant-generate", name)
-    else
-      mgs.autoplace_settings.tile.settings[name] = {}
-      tiles = tiles + 1
-      if name == "water" or name == "deepwater" then mgs.autoplace_controls.water = {} end
-    end
-  end
-  if tiles == 0 then
-    self:problem("no-ground")
-    for _, name in ipairs{"sand-1", "sand-2", "sand-3", "red-desert-0", "red-desert-1"} do
-      if data.raw.tile[name] then mgs.autoplace_settings.tile.settings[name] = {} end
-    end
-  end
-
-  for _, res in ipairs(self.p.resources) do
-    local entity, control
-    if res.resource:sub(1, 5) == "@ore:" then
-      if self.p.ore_keys[res.resource:sub(6)] then
-        entity = self:name("ore", res.resource:sub(6))
-        control = entity
-      else
-        self:problem("missing", res.resource, "resources")
-      end
-    elseif res.resource:sub(1, 1) ~= "@" and data.raw.resource[res.resource] then
-      if data.raw.resource[res.resource].autoplace then
-        entity = res.resource
-        control = data.raw["autoplace-control"][res.resource] and res.resource
-      else
-        self:problem("cant-generate", res.resource)
-      end
-    else
-      self:problem("missing", res.resource, "resources")
-    end
-    if entity then
-      mgs.autoplace_settings.entity.settings[entity] = {}
-      if control then
-        mgs.autoplace_controls[control] = {frequency = res.frequency, size = res.size, richness = res.richness}
-      end
-    end
-  end
-  return mgs
-end
-
 function Builder:build_planet()
   local p = self.p
-  local base = data.raw.planet[p.look.picture]
-  local planet = util.table.deepcopy(base)
+  local planet = {}
+  local mgs = terrain.build(self, planet) -- also picks self.picture and self.sky, and sets the enemy fields
+  local base = data.raw.planet[self.picture]
+  local enemy_fields = {pollutant_type = planet.pollutant_type}
+  planet = util.table.deepcopy(base)
+  local sky = data.raw.planet[self.sky] or base
+  planet.surface_render_parameters = util.table.deepcopy(sky.surface_render_parameters)
+  planet.persistent_ambient_sounds = util.table.deepcopy(sky.persistent_ambient_sounds)
   planet.name = self:name()
   planet.localised_name = literal(p.name)
   planet.localised_description = literal(p.description)
@@ -493,10 +420,11 @@ function Builder:build_planet()
   planet.order = "z[pw-" .. p.id .. "]"
   planet.subgroup = "planets"
   planet.map_seed_offset = hash(p.id)
-  planet.map_gen_settings = self:map_gen_settings()
-  planet.pollutant_type = nil
-  planet.entities_require_heating = nil
-  planet.lightning_properties = nil
+  planet.map_gen_settings = mgs
+  planet.pollutant_type = enemy_fields.pollutant_type
+  planet.entities_require_heating = p.physics.freezing or nil
+  planet.lightning_properties = p.physics.lightning and data.raw.planet.fulgora and
+    util.table.deepcopy(data.raw.planet.fulgora.lightning_properties) or nil
   planet.player_effects = nil
   planet.ticks_between_player_effects = nil
   planet.factoriopedia_simulation = nil
@@ -565,7 +493,8 @@ function M.build_all(found, problems)
       problems[#problems + 1] = {"planet-workshop-problem.duplicate", p.name}
     elseif p then
       seen[p.id] = true
-      local b = setmetatable({p = p, problems = problems, unlocked_by_discovery = {}, built_recipes = {}}, Builder)
+      local b = setmetatable({p = p, problems = problems, unlocked_by_discovery = {}, built_recipes = {},
+        starting = {}}, Builder)
       b:build_ores()
       b:build_planet()
       b:build_science()
@@ -574,7 +503,8 @@ function M.build_all(found, problems)
       b:build_discovery()
       report.planets[#report.planets + 1] = {
         id = p.id, name = p.name, author = p.author, planet = b:name(), discovery = b:name("discovery"),
-        pack = p.science and b:name("pack") or nil, code = entry.code,
+        pack = p.science and b:name("pack") or nil, code = entry.code, picture = b.picture, sky = b.sky,
+        starting = b.starting,
       }
     end
   end

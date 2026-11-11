@@ -1,6 +1,9 @@
 -- Test harness for Planet Workshop (not part of the mod). Run with --test-save and --test-arg <suite>
 -- (tools/run_tests.sh does it). Suites:
---   bridge  the test codes (Brimstone, Frostbite, a broken code, a too-new code) loaded into a new game
+--   bridge  the test codes (eight planets, a broken code, a too-new code) loaded into a new game: prototypes,
+--           Brimstone's world, research, and real assemblers for "made only here"
+--   terrain every test planet's generated world: shapes, ground shares, liquids, cliffs, plants, rocks, enemies,
+--           picture and sky, and starting resources on several seeds
 --   added   the same codes added to a save that was made without them
 --   codec   codes made in game with helpers.encode_string read back by the mod's own decoder
 local codes = require("__planet-workshop__.lib.codes")
@@ -44,7 +47,7 @@ end
 
 local function test_prototypes()
   local r = report()
-  check("two planets loaded from the codes", #r.planets == 2, #r.planets)
+  check("all eight test planets loaded from the codes", #r.planets == 8, #r.planets)
   for _, p in ipairs(r.problems) do info("problem: " .. serpent.line(p)) end
   check("the broken code is reported, not a crash", find_problem("unreadable"))
   check("the too-new code is reported", find_problem("newer-format"))
@@ -68,7 +71,9 @@ local function test_prototypes()
   check("the custom ore item exists", prototypes.item[ore] ~= nil)
   check("the ore mines into its own item", prototypes.entity[ore] and
     prototypes.entity[ore].mineable_properties.products[1].name == ore)
-  check("the ore has a map-gen control", prototypes.autoplace_control[ore] ~= nil)
+  -- each resource on a planet gets the planet's own map-gen control (shown in the new-game map settings)
+  check("the ore has the planet's map-gen control", prototypes.autoplace_control[B .. "-res-1"] ~= nil)
+  check("so does vanilla iron on Brimstone", prototypes.autoplace_control[B .. "-res-2"] ~= nil)
 
   local pack = B .. "-pack"
   check("the science pack exists", prototypes.item[pack] ~= nil)
@@ -135,7 +140,7 @@ local function test_world()
   generate(s, 5)
   local area = {{-160, -160}, {160, 160}}
   local total = s.count_tiles_filtered{area = area}
-  local allowed = {"red-desert-0", "red-desert-1", "red-desert-2", "red-desert-3", "water", "deepwater"}
+  local allowed = {"red-desert-0", "sand-1", "water", "deepwater"}
   local good = s.count_tiles_filtered{area = area, name = allowed}
   check("Brimstone's ground is only the chosen tiles", total > 0 and good == total, good .. "/" .. total)
   info("water tiles near the start: " .. s.count_tiles_filtered{area = area, name = {"water", "deepwater"}})
@@ -156,7 +161,6 @@ local function test_world()
     " (seed " .. s.map_gen_settings.seed .. ")")
   check("iron ore generated", s.count_entities_filtered{name = "iron-ore"} > 0)
   check("no copper (not chosen)", s.count_entities_filtered{name = "copper-ore"} == 0)
-  check("no trees (not chosen)", s.count_entities_filtered{type = "tree"} == 0)
   check("no enemies", s.count_entities_filtered{force = "enemy"} == 0)
   check("gravity from the code", s.get_property("gravity") == 12, s.get_property("gravity"))
   check("pressure from the code", s.get_property("pressure") == 1500)
@@ -189,6 +193,205 @@ local function test_world()
     check("the pack is made on Brimstone", here.products_finished > 0, here.products_finished)
     check("the pack is not made on Nauvis", nauvis.products_finished == 0,
       nauvis.products_finished .. " made, status " .. tostring(nauvis.status))
+  end
+end
+
+-- terrain ---------------------------------------------------------------------------------------------------
+
+local catalog = require("__planet-workshop__.lib.catalog")
+
+local function count(s, filter) return s.count_entities_filtered(filter) end
+
+local function nearest(s, name, radius)
+  local best = math.huge
+  for _, e in pairs(s.find_entities_filtered{name = name, area = {{-radius, -radius}, {radius, radius}}}) do
+    best = math.min(best, math.sqrt(e.position.x ^ 2 + e.position.y ^ 2))
+  end
+  return best
+end
+
+local function share_of(s, area, tile, others)
+  local a = s.count_tiles_filtered{area = area, name = tile}
+  local all = s.count_tiles_filtered{area = area, name = others}
+  return all > 0 and a / all or 0
+end
+
+local function planet_surface(id, radius)
+  local s = game.planets["pw-" .. id].create_surface()
+  generate(s, radius)
+  return s
+end
+
+local function test_terrain()
+  local area = {{-320, -320}, {320, 320}}
+  local r = report()
+  local looks = {}
+  for _, planet in ipairs(r.planets) do looks[planet.id] = planet end
+  local function look(id, picture, sky)
+    check(id .. ": picture " .. picture, looks[id].picture == picture, looks[id].picture)
+    check(id .. ": sky " .. sky, looks[id].sky == sky, looks[id].sky)
+  end
+  look("brim0001", "nauvis", "nauvis")
+  look("glac0003", "aquilo", "aquilo")
+  look("cind0004", "vulcanus", "vulcanus")
+  look("verd0005", "nauvis", "nauvis")
+  look("bloo0006", "gleba", "gleba")
+  look("dust0007", "fulgora", "fulgora")
+  check("frostbite: chosen picture kept", looks["frost002"].picture == "aquilo")
+  -- colour matching on its own (used when no planet owns most of the ground)
+  local refs = {nauvis = {0.345, 0.29, 0.198}, vulcanus = {0.354, 0.234, 0.179}, gleba = {0.326, 0.258, 0.199},
+    fulgora = {0.398, 0.264, 0.224}, aquilo = {0.454, 0.508, 0.58}}
+  check("colour match: snow white is aquilo", catalog.closest_picture({0.75, 0.76, 0.77}, refs) == "aquilo")
+
+  -- Brimstone: lakes, red desert 3 : sand 1, dry trees, rocks, Nauvis cliffs
+  local s = planet_surface("brim0001", 10)
+  local land = {"red-desert-0", "sand-1"}
+  local red = share_of(s, area, "red-desert-0", land)
+  check("brimstone: red desert is about 3/4 of the land", red > 0.6 and red < 0.9, string.format("%.2f", red))
+  check("brimstone: dry trees grow", count(s, {name = catalog.PLANTS["dry-trees"]}) > 0, count(s, {name = catalog.PLANTS["dry-trees"]}))
+  check("brimstone: no forest trees", count(s, {name = catalog.PLANTS.forest}) == 0)
+  check("brimstone: rocks", count(s, {name = catalog.ROCKS.rocks}) > 0, count(s, {name = catalog.ROCKS.rocks}))
+  check("brimstone: cliffs", count(s, {type = "cliff"}) > 0, count(s, {type = "cliff"}))
+  generate(s, 18) -- oil has no starting patch; regular patches start about 450 tiles out
+  check("brimstone: crude oil further out", count(s, {name = "crude-oil"}) > 0)
+  check("brimstone: oil wells don't bring snow", s.count_tiles_filtered{name = {"snow-flat", "snow-lumpy",
+    "snow-patchy", "ice-rough"}} == 0)
+  check("brimstone: no pollution type (no enemies)", prototypes.space_location["pw-brim0001"].pollutant_type == nil)
+
+  -- Glacier: archipelago in ammonia, snow 2 : ice 1, icebergs, freezing
+  s = planet_surface("glac0003", 10)
+  local liquid = s.count_tiles_filtered{area = area, name = {"ammoniacal-ocean", "ammoniacal-ocean-2"}}
+  local total = s.count_tiles_filtered{area = area}
+  info(string.format("glacier: %.0f%% ammonia ocean", 100 * liquid / total))
+  check("glacier: ammonia sea between the islands", liquid / total > 0.1 and liquid / total < 0.9)
+  local odd = {}
+  for _, tile in pairs(s.find_tiles_filtered{area = area, limit = 100,
+    -- (Space Age's lithium brine and fluorine vents make lumpy/patchy snow and rough ice around themselves)
+    name = {"snow-flat", "ice-smooth", "ammoniacal-ocean", "ammoniacal-ocean-2", "snow-lumpy", "snow-patchy",
+      "ice-rough"}, invert = true}) do
+    odd[tile.name] = (odd[tile.name] or 0) + 1
+  end
+  check("glacier: only snow, ice and ammonia", next(odd) == nil, serpent.line(odd))
+  local snow = share_of(s, area, "snow-flat", {"snow-flat", "ice-smooth"})
+  check("glacier: snow is about 2/3 of the land", snow > 0.5 and snow < 0.82, string.format("%.2f", snow))
+  check("glacier: icebergs", count(s, {name = catalog.ROCKS.icebergs}) > 0, count(s, {name = catalog.ROCKS.icebergs}))
+  check("glacier: buildings need heating", prototypes.space_location["pw-glac0003"].entities_require_heating == true)
+  check("glacier: no cliffs (none chosen)", count(s, {type = "cliff"}) == 0)
+
+  -- Cinder: continents in lava, Vulcanus cliffs, lichen, volcanic rocks, demolishers
+  s = planet_surface("cind0004", 12)
+  local lava = s.count_tiles_filtered{area = area, name = {"lava", "lava-hot"}}
+  info(string.format("cinder: %.0f%% lava", 100 * lava / s.count_tiles_filtered{area = area}))
+  check("cinder: lava", lava > 0)
+  check("cinder: vulcanus cliffs", count(s, {name = "cliff-vulcanus"}) > 0, count(s, {name = "cliff-vulcanus"}))
+  check("cinder: lichen trees", count(s, {name = catalog.PLANTS.lichen}) > 0)
+  check("cinder: volcanic rocks", count(s, {name = catalog.ROCKS["volcanic-rocks"]}) > 0)
+  check("cinder: tungsten", count(s, {name = "tungsten-ore"}) > 0)
+  local territories = #s.get_territories()
+  check("cinder: demolisher territories", territories > 0, territories)
+  info("cinder: demolishers alive in the generated area: " .. count(s, {type = "segmented-unit"}))
+
+  -- Verdant: island, forests, biters
+  s = planet_surface("verd0005", 12)
+  check("verdant: forests", count(s, {name = catalog.PLANTS.forest}) > 100, count(s, {name = catalog.PLANTS.forest}))
+  local spawners = count(s, {type = "unit-spawner"})
+  check("verdant: biter nests", spawners > 0, spawners)
+  check("verdant: no nests near the landing spot", nearest(s, "biter-spawner", 400) > 100, nearest(s, "biter-spawner", 400))
+  check("verdant: pollution draws attacks", prototypes.space_location["pw-verd0005"].pollutant_type.name == "pollution")
+  check("verdant: fish in the water", count(s, {name = "fish"}) > 0)
+  check("verdant: decorations", #s.find_decoratives_filtered{area = {{-100, -100}, {100, 100}}} > 0)
+  check("verdant: no cliffs (none chosen)", count(s, {type = "cliff"}) == 0)
+
+  -- Bloom: slime lakes, gleba plants, stromatolites, pentapods
+  s = planet_surface("bloo0006", 18) -- nests start 300-400 tiles out
+  check("bloom: slime", s.count_tiles_filtered{area = area, name = {"wetland-light-green-slime", "gleba-deep-lake"}} > 0)
+  check("bloom: gleba plants", count(s, {name = catalog.PLANTS["gleba-plants"]}) > 0)
+  check("bloom: stromatolites", count(s, {name = catalog.ROCKS.stromatolites}) > 0)
+  local pods = count(s, {name = {"gleba-spawner", "gleba-spawner-small"}})
+  check("bloom: pentapod nests (in the swamps)", pods > 0, pods)
+  check("bloom: spores draw attacks", prototypes.space_location["pw-bloo0006"].pollutant_type.name == "spores")
+
+  -- Dustbowl: no liquid at all, ruins, scrap
+  s = planet_surface("dust0007", 8)
+  total = s.count_tiles_filtered{area = {{-256, -256}, {256, 256}}}
+  check("dustbowl: no liquid, only its two ground tiles", s.count_tiles_filtered{area = {{-256, -256}, {256, 256}},
+    name = {"fulgoran-sand", "fulgoran-dunes"}} == total)
+  check("dustbowl: ruins", count(s, {name = catalog.ROCKS.ruins}) > 0, count(s, {name = catalog.ROCKS.ruins}))
+  check("dustbowl: scrap", count(s, {name = "scrap"}) > 0)
+
+  -- Pond: our continents shape on a water planet always has a starting pond near the landing spot
+  local farthest = 0
+  for seed = 1, 4 do
+    local mgs = game.planets["pw-pond0008"].create_surface().map_gen_settings
+    mgs.seed = seed * 104729
+    local test = game.create_surface("pond-seed-" .. seed, mgs)
+    generate(test, 3)
+    local water = test.find_tiles_filtered{area = {{-96, -96}, {96, 96}}, name = {"water", "deepwater"}}
+    local best = math.huge
+    for _, tile in pairs(water) do
+      best = math.min(best, math.sqrt(tile.position.x ^ 2 + tile.position.y ^ 2))
+    end
+    farthest = math.max(farthest, best)
+    game.delete_surface(test)
+  end
+  check("pond: water within 80 tiles of the landing spot on 4 seeds", farthest <= 80,
+    farthest == math.huge and "none" or math.floor(farthest))
+
+  -- The safety net on a very unlucky seed: no starting geysers or iron anywhere near the landing spot
+  local mgs = game.planets["pw-cind0004"].surface.map_gen_settings
+  mgs.seed = 31337
+  local unlucky = game.create_surface("unlucky", mgs)
+  generate(unlucky, 8)
+  for _, e in pairs(unlucky.find_entities_filtered{name = {"sulfuric-acid-geyser", "coal"}, area = {{-260, -260}, {260, 260}}}) do
+    e.destroy()
+  end
+  local placed = remote.call("planet-workshop", "ensure_start", unlucky.index, "pw-cind0004")
+  check("safety net: places the missing geyser and coal", #placed == 2, serpent.line(placed))
+  local wells = unlucky.find_entities_filtered{name = "sulfuric-acid-geyser", area = {{-200, -200}, {200, 200}}}
+  check("safety net: a cluster of geysers near the landing spot", #wells >= 3, #wells)
+  local wet = 0
+  for _, e in pairs(unlucky.find_entities_filtered{name = {"sulfuric-acid-geyser", "coal"}, area = {{-200, -200}, {200, 200}}}) do
+    if unlucky.get_tile(e.position.x, e.position.y).prototype.fluid then wet = wet + 1 end
+  end
+  check("safety net: nothing placed in lava", wet == 0, wet)
+  check("safety net: a coal patch near the landing spot", nearest(unlucky, "coal", 200) <= 200)
+  check("safety net: does nothing when all is there", #remote.call("planet-workshop", "ensure_start", unlucky.index,
+    "pw-cind0004") == 0)
+  game.delete_surface(unlucky)
+
+  -- Starting resources on several seeds (with the safety net): all within 200 tiles of the landing spot (fluids:
+  -- sparse wells and vents)
+  for _, case in ipairs{
+    {"brim0001", {"pw-brim0001-ore-sulfite", "iron-ore", "stone"}},
+    {"verd0005", {"iron-ore", "copper-ore", "coal", "stone"}},
+    {"cind0004", {"tungsten-ore", "calcite", "coal"}, {"sulfuric-acid-geyser"}},
+    {"glac0003", {"iron-ore", "copper-ore"}, {"fluorine-vent"}},
+  } do
+    local worst, worst_name, worst_fluid, worst_fluid_name = 0, "", 0, ""
+    for seed = 1, 4 do
+      local mgs = game.planets["pw-" .. case[1]].surface.map_gen_settings
+      mgs.seed = seed * 7919
+      local test = game.create_surface(case[1] .. "-seed-" .. seed, mgs)
+      generate(test, case[3] and 10 or 7)
+      -- the safety net, as on a first visit (these test surfaces aren't the planet's own, so call it directly)
+      local placed = remote.call("planet-workshop", "ensure_start", test.index, "pw-" .. case[1])
+      if #placed > 0 then info(case[1] .. " seed " .. seed .. ": the safety net placed " .. table.concat(placed, ", ")) end
+      for _, name in ipairs(case[2]) do
+        local d = nearest(test, name, 224)
+        if d > worst then worst, worst_name = d, name end
+      end
+      for _, name in ipairs(case[3] or {}) do
+        local d = nearest(test, name, 320)
+        if d > worst_fluid then worst_fluid, worst_fluid_name = d, name end
+      end
+      game.delete_surface(test)
+    end
+    local function show(d, name) return name .. " " .. (d == math.huge and "none" or math.floor(d)) end
+    check(case[1] .. ": starting ores within 200 tiles on 4 seeds", worst <= 200, "farthest: " .. show(worst, worst_name))
+    if case[3] then
+      check(case[1] .. ": starting wells/vents within 200 tiles on 4 seeds", worst_fluid <= 200,
+        "farthest: " .. show(worst_fluid, worst_fluid_name))
+    end
   end
 end
 
@@ -288,6 +491,7 @@ end
 local SUITES = {
   bridge = function() test_prototypes(); return test_world() end,
   added = test_added,
+  terrain = test_terrain,
   codec = test_codec,
 }
 
