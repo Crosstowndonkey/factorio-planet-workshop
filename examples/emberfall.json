@@ -1,0 +1,27 @@
+{
+  "id": "exemberfall", "name": "Emberfall", "author": "Crosstowndonkey",
+  "description": "A young volcanic world of black ash and lava seas. Cinderite, a glowing orange ore, forms where the lava cools. Tread carefully: demolishers roam the ash plains.",
+  "look": {},
+  "space": {"from": "vulcanus", "length": 20000, "distance": 24, "orientation": 0.3, "magnitude": 0.9, "asteroids": "nauvis_vulcanus"},
+  "physics": {"gravity": 30, "pressure": 3000, "magnetic_field": 20, "solar_power": 250, "day_length": 3},
+  "terrain": {
+    "shape": "lakes", "liquid": "lava", "liquid_amount": 1.5, "patch_size": 1,
+    "ground": [{"tile": "volcanic-ash-dark", "share": 2}, {"tile": "volcanic-cracks-warm", "share": 1}, {"tile": "volcanic-ash-light", "share": 1}, {"tile": "volcanic-folds", "share": 1}],
+    "cliffs": {"style": "vulcanus", "amount": 1.5},
+    "plants": {"styles": ["dry-trees"], "amount": 0.5},
+    "rocks": {"styles": ["volcanic-rocks"], "amount": 2}
+  },
+  "enemies": {"kind": "demolishers", "amount": 0.5},
+  "ores": [{"key": "cinderite", "kind": "solid", "name": "Cinderite", "base": "stone", "tint": [1, 0.45, 0.15], "mining_time": 2, "stack_size": 50}],
+  "resources": [
+    {"resource": "@ore:cinderite", "starting": true}, {"resource": "iron-ore"}, {"resource": "copper-ore"},
+    {"resource": "coal"}, {"resource": "sulfuric-acid-geyser"}
+  ],
+  "science": {"name": "Ember science pack", "tint": [1, 0.5, 0.2], "base": "metallurgic-science-pack",
+    "ingredients": [["@ore:cinderite", 5], ["steel-plate", 1]], "count": 1, "time": 10, "category": "crafting", "only_here": true},
+  "recipes": [{"key": "cinder-brick", "name": "Cinder bricks", "ingredients": [["@ore:cinderite", 4]], "results": [["stone-brick", 3]],
+    "category": "smelting", "time": 3.2}],
+  "technologies": [{"key": "ember-mining", "name": "Ember mining", "prerequisites": ["@discovery"], "count": 300, "time": 30,
+    "ingredients": [["@pack", 1], ["chemical-science-pack", 1]],
+    "effects": [{"type": "unlock-recipe", "recipe": "@recipe:cinder-brick"}, {"type": "mining-drill-productivity-bonus", "modifier": 0.1}]}]
+}

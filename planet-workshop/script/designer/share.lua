@@ -114,7 +114,7 @@ end
 
 --- True if this is someone else's imported planet.
 function M.foreign(design, player)
-  return design._original ~= nil and (design.author or "") ~= player.name
+  return design._original ~= nil and (design.author or ""):lower() ~= player.name:lower() -- (names: any case)
 end
 
 --- True if someone else's planet has been changed since it was imported.

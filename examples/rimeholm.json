@@ -1,0 +1,28 @@
+{
+  "id": "exrimeholm", "name": "Rimeholm", "author": "Crosstowndonkey",
+  "description": "A frozen archipelago in an ammonia sea, far out and dim. Buildings freeze without heat. Frostite, a pale blue ore, is found in the snowfields, and its science pack thaws away in half an hour.",
+  "look": {},
+  "space": {"from": "aquilo", "length": 30000, "distance": 48, "orientation": 0.85, "magnitude": 0.8, "asteroids": "aquilo_solar_system_edge"},
+  "physics": {"gravity": 15, "pressure": 400, "magnetic_field": 10, "solar_power": 30, "day_length": 20, "freezing": true},
+  "terrain": {
+    "shape": "archipelago", "liquid": "ammonia", "liquid_amount": 1, "patch_size": 1.5,
+    "ground": [{"tile": "snow-flat", "share": 3}, {"tile": "snow-crests", "share": 1}, {"tile": "ice-rough", "share": 1}],
+    "rocks": {"styles": ["icebergs"], "amount": 2}
+  },
+  "enemies": {"kind": "none"},
+  "ores": [{"key": "frostite", "kind": "solid", "name": "Frostite", "base": "uranium-ore", "tint": [0.55, 0.8, 1], "mining_time": 1.5, "stack_size": 50}],
+  "resources": [
+    {"resource": "@ore:frostite", "starting": true}, {"resource": "iron-ore", "starting": true}, {"resource": "copper-ore"},
+    {"resource": "crude-oil", "starting": true}, {"resource": "lithium-brine"}, {"resource": "fluorine-vent"}
+  ],
+  "science": {"name": "Frost science pack", "tint": [0.6, 0.85, 1], "base": "cryogenic-science-pack",
+    "ingredients": [["@ore:frostite", 4], ["ice", 4]], "count": 1, "time": 12, "category": "cryogenics", "only_here": true, "spoil_minutes": 30},
+  "recipes": [{"key": "thaw", "name": "Frostite thawing", "ingredients": [["@ore:frostite", 2]], "results": [["ice", 4], ["stone", 1]],
+    "category": "chemistry", "time": 2, "only_here": true}],
+  "technologies": [
+    {"key": "frost-lore", "name": "Frost lore", "prerequisites": ["@discovery"], "count": 500, "time": 45,
+      "ingredients": [["@pack", 1], ["space-science-pack", 1]], "effects": [{"type": "unlock-recipe", "recipe": "@recipe:thaw"}]},
+    {"key": "deep-cold", "name": "Deep cold research", "prerequisites": ["@tech:frost-lore"], "count": 1000, "time": 60, "infinite": true,
+      "ingredients": [["@pack", 1], ["space-science-pack", 1]], "effects": [{"type": "laboratory-productivity", "modifier": 0.05}]}
+  ]
+}

@@ -366,6 +366,7 @@ function M.build(player)
     style = ps.confirm_delete and "red_button" or "button"}
   local gap = tools.add{type = "empty-widget"}
   gap.style.horizontally_stretchable = true
+  tools.add{type = "button", caption = L("examples"), tooltip = L("examples-tooltip"), tags = {pw = "examples"}}
   tools.add{type = "button", caption = L("import"), tooltip = L("import-tooltip"), tags = {pw = "import-open"}}
   tools.add{type = "button", caption = L("get-code"), tooltip = L("get-code-tooltip"), tags = {pw = "get-code"},
     style = "confirm_button_without_tooltip"}

@@ -15,6 +15,7 @@ local testplay = require("__planet-workshop__.script.designer.testplay")
 local startedit = require("__planet-workshop__.script.designer.startedit")
 local startarea = require("__planet-workshop__.script.startarea")
 local share = require("__planet-workshop__.script.designer.share")
+local EXAMPLES = require("__planet-workshop__.script.examples")
 
 local M = {}
 
@@ -283,6 +284,14 @@ function M.import(player, text)
     end
   end
   return count, problems
+end
+
+--- The example planets that come with the mod (to look at, play, or remix).
+ACTIONS.examples = function(player)
+  local count, problems = M.import(player, EXAMPLES)
+  player.print({"planet-workshop-designer.examples-loaded", count})
+  for _, problem in ipairs(problems) do player.print(problem) end
+  refresh_now(player)
 end
 
 ACTIONS["import-do"] = function(player)

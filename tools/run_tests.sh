@@ -1,12 +1,12 @@
 #!/bin/bash
 # Runs the test suites headless in a throwaway folder (never touches ~/.factorio).
-# Usage: tools/run_tests.sh [suite ...]      suites: bridge terrain designer startarea roundtrip sameworld testplay startplanet share scenario codec added (roundtrip needs designer and startarea) (default: all)
+# Usage: tools/run_tests.sh [suite ...]      suites: bridge terrain designer startarea roundtrip sameworld testplay startplanet share examples scenario codec added (roundtrip needs designer and startarea) (default: all)
 # FACTORIO=/path/to/factorio overrides the game binary. KEEP=1 keeps the throwaway folder (its path is printed).
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FACTORIO="${FACTORIO:-/mnt/GamingSSD/SteamLibrary/steamapps/common/Factorio/bin/x64/factorio}"
 SUITES=("$@")
-[ ${#SUITES[@]} -eq 0 ] && SUITES=(bridge terrain designer startarea roundtrip sameworld testplay startplanet share scenario codec added)
+[ ${#SUITES[@]} -eq 0 ] && SUITES=(bridge terrain designer startarea roundtrip sameworld testplay startplanet share examples scenario codec added)
 WORK="$(mktemp -d)"
 if [ -n "$KEEP" ]; then echo "(work folder: $WORK)"; else trap 'rm -rf "$WORK"' EXIT; fi
 mkdir -p "$WORK/mods" "$WORK/write"
@@ -66,6 +66,11 @@ for suite in "${SUITES[@]}"; do
     printf -- '-- the code the designer suite made\nreturn "%s"\n' "$code" > "$WORK/mods/pw-codes/codes.lua"
     mod_list true
     run --create "$WORK/roundtrip.zip" > "$WORK/roundtrip-create.log" 2>&1 || { tail -30 "$WORK/roundtrip-create.log"; exit 1; }
+  elif [ "$suite" = examples ]; then
+    # a new game with only the example planets loaded
+    \cp -f "$ROOT/planet-workshop/script/examples.lua" "$WORK/mods/pw-codes/codes.lua"
+    mod_list true
+    run --create "$WORK/examples.zip" > "$WORK/examples-create.log" 2>&1 || { tail -30 "$WORK/examples-create.log"; exit 1; }
   elif [ "$suite" = startplanet ]; then
     # a new game with Verdant as the starting planet (by name, in another case)
     printf 'return "verdant"\n' > "$WORK/mods/pw-codes/start.lua"

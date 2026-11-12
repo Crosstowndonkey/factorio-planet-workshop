@@ -1,4 +1,14 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.0
+Date: 2026-11-12
+  Features:
+    - Example planets: the designer's Examples button loads Emberfall (volcanic, with its own ore, pack and
+      research), Mirewood (a starting planet with its own oil) and Rimeholm (frozen, with a pack that thaws).
+    - A thumbnail.
+  Bugfixes:
+    - Your own planets counted as someone else's (and were turned into remixes) when the author name and the
+      player name differed only in capital letters.
+---------------------------------------------------------------------------------------------------
 Version: 0.0.8
 Date: 2026-11-12
   Features:

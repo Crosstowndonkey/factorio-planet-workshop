@@ -3,29 +3,19 @@
 A Factorio 2.1 + Space Age mod: design your own planets in an in-game Planet Designer, then add them to any Space
 Age save and share them with other players as **planet codes** (like blueprint strings).
 
-**Status: step 6 (sharing) is done**: Get code opens a Share window (planet packs, a share picture with an info
-card), changed imports are shared as remixes that credit the original, and codes list the other mods they need.
-**Earlier: step 5b (start on your own planet)**: the "Starting planet" startup setting makes new Freeplay games
-start on one of your planets.
-**Earlier: step 5 (hand-made start areas)**: the designer's **Start
-area** section opens Factorio's map editor on the planet to shape the land around the landing spot.
-**Earlier: step 4 (test play and checks)**: **Test play** lands you on the
-preview planet as a character, and **Checks** lists what could make a planet unplayable.
-**Earlier: step 3 (production) and step
-2 (the Planet Designer).** Start **New game > Scenarios > Planet Designer (Planet
-Workshop)** to design planets with a live preview, then press **Get code**.
+**Status: 0.9.0, the test build** (all seven build steps done; playtesting before the first public release).
+What players see is in [docs/portal-description.md](docs/portal-description.md), the mod portal page, with
+pictures in [docs/gallery](docs/gallery). Example planets are in [examples/](examples) (JSON; the mod carries them
+as one code in `script/examples.lua`, made with `tools/make_code.py examples/*.json --lua ...`).
 
-**Earlier: step 1 (planet generation).** A planet code pasted into the mod's startup setting becomes a real
-planet: you can research it, fly to it, and mine its own ore, and it comes with its own science pack, recipes and
-technologies. Its terrain, liquid, cliffs, plants, rocks, enemies, physics and look all come from the code. The
-designer GUI comes next.
+![The Planet Designer](docs/gallery/01-designer-terrain.jpg)
 
 ## How planet codes work
 
 Factorio's planets are prototypes, made once while the game starts up. A running game can't create them, and the
 loading game can't read files or saves. So the bridge is a startup setting:
 
-1. The designer (later) makes a code: `PW1:` + base64 of zlib-compressed JSON (`helpers.encode_string`).
+1. The designer makes a code: `PW1:` + base64 of zlib-compressed JSON (`helpers.encode_string`).
 2. The player pastes it into **Settings > Mod settings > Startup > Planet codes**. Several codes can be pasted one
    after another, separated by spaces.
 3. After the restart, `data-updates.lua` decodes the codes in plain Lua (`lib/base64.lua`, `lib/inflate.lua`,
@@ -146,6 +136,13 @@ choices live in `lib/catalog.lua`.
     428 damaged or cut codes that must fail politely; JSON edge cases.
   - **added**: the codes added to a save that was made without them.
 - `tools/make_code.py planet.json` makes a code from a planet JSON file (`--decode CODE` shows what's inside one).
+
+## Releasing
+- `tools/package.sh` makes `dist/planet-workshop_<version>.zip` (for testers, or the portal).
+- `tools/publish.py --first` publishes it on the mod portal with the description and gallery; later releases are
+  `tools/publish.py` (bump `info.json` and the changelog first), `--details` updates the page text, `--gallery` the
+  pictures. It reads the API key from `~/.config/factorio/modportal-api-key`.
+- The thumbnail and gallery are in-game screenshots (no drawn or generated art).
 
 ## Licence
 

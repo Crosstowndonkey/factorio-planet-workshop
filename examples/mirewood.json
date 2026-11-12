@@ -1,0 +1,26 @@
+{
+  "id": "exmirewood", "name": "Mirewood", "author": "Crosstowndonkey",
+  "description": "A damp forest world of lakes and bogs, made to start a new game on. Everything a young factory needs is close by, and the bogs seep a green mire oil that cracks into gas.",
+  "starting_planet": true,
+  "look": {},
+  "space": {"from": "nauvis", "length": 12000, "distance": 14, "orientation": 0.62, "magnitude": 1.1, "asteroids": "nauvis_gleba"},
+  "physics": {"gravity": 10, "pressure": 1000, "magnetic_field": 70, "solar_power": 80, "day_length": 9},
+  "terrain": {
+    "shape": "big-lakes", "liquid": "water", "liquid_amount": 1.2, "patch_size": 1,
+    "ground": [{"tile": "grass-2", "share": 3}, {"tile": "lowland-olive-blubber", "share": 1}, {"tile": "dirt-6", "share": 1}],
+    "cliffs": {"style": "nauvis", "amount": 0.5},
+    "plants": {"styles": ["forest", "gleba-plants"], "amount": 1.5},
+    "rocks": {"styles": ["rocks", "stromatolites"], "amount": 1}
+  },
+  "enemies": {"kind": "biters", "amount": 0.75},
+  "ores": [{"key": "mire-oil", "kind": "fluid", "name": "Mire oil", "base": "crude-oil", "tint": [0.45, 0.85, 0.3], "mining_time": 1}],
+  "resources": [
+    {"resource": "iron-ore", "starting": true}, {"resource": "copper-ore", "starting": true}, {"resource": "stone", "starting": true},
+    {"resource": "coal", "starting": true}, {"resource": "crude-oil"}, {"resource": "@ore:mire-oil"}
+  ],
+  "recipes": [{"key": "mire-cracking", "name": "Mire oil cracking", "ingredients": [["@ore:mire-oil", 100]],
+    "results": [["petroleum-gas", 70], ["light-oil", 20]], "category": "oil-processing", "time": 5}],
+  "technologies": [{"key": "mire-chemistry", "name": "Mire chemistry", "prerequisites": ["oil-processing"], "count": 150, "time": 30,
+    "ingredients": [["automation-science-pack", 1], ["logistic-science-pack", 1]],
+    "effects": [{"type": "unlock-recipe", "recipe": "@recipe:mire-cracking"}]}]
+}
