@@ -69,6 +69,7 @@ commands.add_command("planet-workshop", {"planet-workshop.command-help"}, functi
   target.print({"planet-workshop.loaded", #r.planets})
   for _, p in ipairs(r.planets) do
     target.print({"planet-workshop.loaded-planet", p.name, p.author or "?", p.code})
+    for _, c in ipairs(p.credits or {}) do target.print({"", "    ", {"planet-workshop.based-on", c.name, c.author}}) end
   end
   tell_problems(target)
 end)

@@ -14,6 +14,7 @@ local checks = require("__planet-workshop__.script.designer.checks")
 local testplay = require("__planet-workshop__.script.designer.testplay")
 local startedit = require("__planet-workshop__.script.designer.startedit")
 local startarea = require("__planet-workshop__.script.startarea")
+local share = require("__planet-workshop__.script.designer.share")
 
 local M = {}
 
@@ -79,6 +80,10 @@ end
 function ACTIONS.copy(player, ps)
   local design = state.current(player)
   local copy = util.table.deepcopy(design)
+  if share.foreign(design, player) then -- a copy of someone else's planet is the player's remix
+    share.make_remix(copy, player)
+  end
+  copy._original = nil
   copy.id = state.new_id(player)
   copy.name = (design.name or "Planet") .. " (copy)"
   table.insert(storage.designer.designs, copy)
@@ -216,6 +221,10 @@ ACTIONS["add-technology"] = function(player)
 end
 
 ACTIONS["get-code"] = function(player) gui.show_code(player) end
+ACTIONS["share-picture"] = function(player)
+  local file, why = share.picture(player)
+  player.print(file and {"planet-workshop-designer.picture-saved", file} or why)
+end
 ACTIONS["test-start"] = function(player) testplay.request(player) end
 ACTIONS["test-stop"] = function(player) testplay.stop(player) end
 ACTIONS["start-edit"] = function(player) startedit.request(player) end
@@ -254,6 +263,10 @@ function M.import(player, text)
   for _, entry in ipairs(found) do
     local planet = M.editable(spec.normalize(entry.planet, problems))
     if planet then
+      share.mark_imported(planet)
+      for _, name in ipairs(share.missing_mods(planet)) do
+        problems[#problems + 1] = {"planet-workshop-problem.needs-mod", planet.name, name}
+      end
       local replaced = false
       for i, d in ipairs(designs) do
         if d.id == planet.id then
@@ -419,6 +432,11 @@ function M.on_gui_checked_state_changed(event)
     end
     preview.schedule(player.index, 1)
     gui.build(player)
+  elseif tags.pw == "share-pick" then
+    local ps = state.player(player.index)
+    ps.share = ps.share or {}
+    ps.share[tags.id] = el.state or nil
+    gui.show_code(player)
   elseif tags.pw == "test-check" then
     testplay.options(state.player(player.index))[tags.key] = el.state
   elseif tags.pw == "style" then
@@ -521,7 +539,7 @@ M.remote = {
     return count
   end,
   designer_code = function(player_index)
-    return codes.encode({state.current(game.get_player(player_index))})
+    return codes.encode({share.for_code(state.current(game.get_player(player_index)))})
   end,
   designer_designs = function() return storage.designer and storage.designer.designs end,
   designer_tab = function(player_index, section) -- a section name, or its number in the sidebar

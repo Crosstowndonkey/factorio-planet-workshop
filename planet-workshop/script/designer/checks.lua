@@ -154,6 +154,14 @@ function M.run(design, ps)
     add("note", "physics", L("cant-build", list))
   end
 
+  -- Made with mods this game doesn't have
+  local missing_mods = {}
+  for name in pairs(design.mods or {}) do
+    if not script.active_mods[name] then missing_mods[#missing_mods + 1] = name end
+  end
+  table.sort(missing_mods)
+  for _, name in ipairs(missing_mods) do add("warning", "general", L("needs-mod", name)) end
+
   -- Resources
   if #p.resources == 0 then
     add("warning", "resources", L("no-resources"))

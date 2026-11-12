@@ -3,9 +3,11 @@
 A Factorio 2.1 + Space Age mod: design your own planets in an in-game Planet Designer, then add them to any Space
 Age save and share them with other players as **planet codes** (like blueprint strings).
 
-**Status: step 5b (start on your own planet) is done**: the "Starting planet" startup setting makes new Freeplay
-games start on one of your planets (crash site, landing, respawns there; Nauvis to fly to later), and the designer
-can check a planet made to be started on. **Earlier: step 5 (hand-made start areas)**: the designer's **Start
+**Status: step 6 (sharing) is done**: Get code opens a Share window (planet packs, a share picture with an info
+card), changed imports are shared as remixes that credit the original, and codes list the other mods they need.
+**Earlier: step 5b (start on your own planet)**: the "Starting planet" startup setting makes new Freeplay games
+start on one of your planets.
+**Earlier: step 5 (hand-made start areas)**: the designer's **Start
 area** section opens Factorio's map editor on the planet to shape the land around the landing spot.
 **Earlier: step 4 (test play and checks)**: **Test play** lands you on the
 preview planet as a character, and **Checks** lists what could make a planet unplayable.
@@ -71,6 +73,12 @@ finished preview runs the starting-resources safety net, like the real planet's 
 planet's surface properties on the preview (`LuaSurface.set_property`) and gives the tester their own force
 (`pw-test-<player>`); freezing and lightning are planet-prototype only, so test play can't show them.
 
+**Sharing** (`script/designer/share.lua`): codes come from `share.for_code` (designer-only fields, which start
+with `_`, are left out; `mods` = the mods that created what the planet uses, from `prototypes.get_history`). An
+import keeps `_original`; if the planet is changed and shared by someone else, it becomes their remix (new id,
+author, `credits`). The share picture is `game.take_screenshot` of the preview with a card drawn by `rendering`
+for 3 ticks (sprites draw under rectangles, so the planet's picture is rich text in a text object).
+
 **Starting planet** (`script/startplanet.lua`): at `on_init` of a new freeplay game (tick 0) the planet's surface
 is made and the force's spawn point put there. Freeplay handles `on_player_created` before mods, so its crash
 site is switched off (remote `freeplay.set_disable_crashsite`) and made on the planet with the `crash-site`
@@ -110,7 +118,7 @@ choices live in `lib/catalog.lua`.
 
 ## Developing
 
-- `tools/run_tests.sh [bridge terrain designer startarea roundtrip sameworld testplay startplanet scenario codec added]` runs the headless test suites in a throwaway folder (never
+- `tools/run_tests.sh [bridge terrain designer startarea roundtrip sameworld testplay startplanet share scenario codec added]` runs the headless test suites in a throwaway folder (never
   `~/.factorio`). `KEEP=1` keeps the folder for reading logs.
   - **bridge**: the test planets (including Frostbite, which is full of mistakes) plus a broken code and a
     too-new code, loaded into a new game: prototypes, generated terrain and ore, research, and real assemblers
@@ -125,6 +133,9 @@ choices live in `lib/catalog.lua`.
     a tree taken away, a chest that isn't kept), shown in the preview, in the code, and Cancel; **roundtrip**
     then loads it and checks the real planet has every change. **sameworld**: preview and planet on one seed
     are identical.
+  - **share**: remixes (unchanged imports stay the original; changed ones get their own id and credit), Copy of
+    someone else's planet, a three-planet pack, the mods a code lists, a missing mod in Checks, the picture
+    call, and the author in the planet's description. (bridge also checks a missing mod is reported.)
   - **startplanet**: a new game made with Verdant as the starting planet: the player, crash site, spawn point,
     discovery, charted start, Nauvis still there, and respawning on Verdant.
   - **testplay**: every kind of check on a planet full of mistakes (and none once fixed), a loaded planet's real

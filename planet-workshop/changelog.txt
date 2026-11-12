@@ -1,4 +1,18 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.0.8
+Date: 2026-11-12
+  Features:
+    - Get code opens a Share window: tick other planets to make a planet pack (one code, several planets).
+    - Save share picture: a picture of the planet's preview with a card about it (its look, name, author,
+      description, ground, resources, enemies, gravity, day length, its own pack and ores), saved to
+      script-output/planet-workshop to post with its code.
+    - Remixes: a planet imported from someone else's code can be changed; when it's shared it becomes your
+      remix, with its own id (it won't replace the original), you as the author, and "Based on ... by ...".
+      Copy of someone else's planet does the same.
+    - Credits: a planet's description in game says who made it and who it's based on; /planet-workshop lists it.
+    - Mod checks: codes list the other mods a planet uses. Loading or importing one without them says which
+      mod is missing (things from it are left out), and the designer's Checks warn about it.
+---------------------------------------------------------------------------------------------------
 Version: 0.0.7
 Date: 2026-11-12
   Features:

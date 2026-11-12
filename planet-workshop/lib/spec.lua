@@ -36,7 +36,7 @@ M.MODIFIERS = {
 
 M.LIMITS = {
   name = 40, description = 500, author = 40, list = 64, ingredients = 12,
-  palette = 255, tile_runs = 40000, start_things = 20000,
+  palette = 255, tile_runs = 40000, start_things = 20000, credits = 10,
 }
 --- Sizes a hand-made start area can have (tiles from the landing spot).
 M.START_RADII = {32, 48, 64, 96}
@@ -141,6 +141,25 @@ function M.normalize(raw, problems)
     -- made to be started on (the "Starting planet" setting picks it; this asks the designer for extra checks)
     starting_planet = raw.starting_planet == true or nil,
   }
+  -- who it's based on, when it's a remix of someone else's planet: {{name, author}}, oldest first
+  p.credits = {}
+  for _, c in ipairs(type(raw.credits) == "table" and raw.credits or {}) do
+    if type(c) == "table" and #p.credits < M.LIMITS.credits then
+      p.credits[#p.credits + 1] = {name = text(c.name, M.LIMITS.name, "?"), author = text(c.author, M.LIMITS.author, "?")}
+    end
+  end
+  if #p.credits == 0 then p.credits = nil end
+  -- the other mods it was made with (name -> version), so a game without them can say so
+  if type(raw.mods) == "table" then
+    p.mods = {}
+    local count = 0
+    for name, version in pairs(raw.mods) do
+      if type(name) == "string" and name:match("^[%w%-_ ]+$") and #name <= 100 and count < 64 then
+        p.mods[name] = type(version) == "string" and version:match("^[%d%.]+$") and version or "?"
+        count = count + 1
+      end
+    end
+  end
 
   -- "auto" picture: the vanilla planet closest in colour to the ground (see catalog.closest_picture);
   -- "auto" sky (lighting, colour grading, ambient sound): the home planet of most of the ground.

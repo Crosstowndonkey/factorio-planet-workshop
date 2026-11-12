@@ -64,6 +64,7 @@ local function test_prototypes()
   check("all eight test planets loaded from the codes", #r.planets == 8, #r.planets)
   for _, p in ipairs(r.problems) do info("problem: " .. serpent.line(p)) end
   check("the broken code is reported, not a crash", find_problem("unreadable"))
+  check("a planet made with a mod that isn't here says so", find_problem("needs-mod", "Frostbite", "no-such-mod"))
   check("the too-new code is reported", find_problem("newer-format"))
   local brim_problems = 0
   for _, p in ipairs(r.problems) do
@@ -517,7 +518,9 @@ local function test_designer()
     local code = R("designer_code", player.index)
     local pack = codes.decode_body(code:sub(5))
     local design = R("designer_designs")[1]
-    check("Get code makes a code that reads back as the same planet", pack and same(pack.planets[1], design),
+    local read = pack and pack.planets[1]
+    if read then read.mods = nil end -- (the code also says which other mods it uses)
+    check("Get code makes a code that reads back as the same planet", pack and same(read, design),
       pack and serpent.line(pack.planets[1].terrain))
     local count = R("designer_import", player.index, "junk with no code")
     check("importing junk adds nothing", count == 0 and #R("designer_designs") == 1)
@@ -1008,6 +1011,98 @@ local function test_startplanet()
   end
 end
 
+-- share: remixes, packs, mods and the share picture -------------------------------------------------------------
+
+local function test_share()
+  local player = game.players[1]
+  local P = player.index
+  R("start_designer")
+  R("designer_set", P, "name", "Mine")
+  R("designer_set", P, "terrain.ground", {{tile = "volcanic-ash-dark", share = 1}})
+  local mine = codes.decode_body(R("designer_code", P):sub(5)).planets[1]
+  check("a code lists the other mods it uses", mine.mods and mine.mods["space-age"] ~= nil, serpent.line(mine.mods))
+
+  R("designer_import", P, settings.startup["planet-workshop-planets"].value)
+  local brim_index
+  for i, d in ipairs(R("designer_designs")) do if d.id == "brim0001" then brim_index = i end end
+  local dd = find(root(player), function(t) return t.pw == "select-design" end)
+  dd.selected_index = brim_index
+  R("designer_event", "on_gui_selection_state_changed", {element = dd, player_index = P})
+  local brim = R("designer_designs")[brim_index]
+  check("an imported planet remembers how it came", brim._original ~= nil and brim.author ~= player.name, brim.author)
+  R("designer_tab", P, "general")
+  check("General says whose planet it is", find(root(player), function(t, el)
+    return el.type == "label" and type(el.caption) == "table" and el.caption[1] == "planet-workshop-designer.imported-banner" end) ~= nil)
+
+  -- unchanged: shared as it is
+  R("designer_do", P, "get-code")
+  local code = player.gui.screen.pw_designer_code.code.text
+  local planet = codes.decode_body(code:sub(5)).planets[1]
+  check("an unchanged import is shared as the original", planet.id == "brim0001" and planet.author == brim.author and
+    planet._original == nil)
+  -- changed: a remix
+  local author = brim.author
+  R("designer_set", P, "physics.gravity", 3)
+  R("designer_do", P, "get-code")
+  code = player.gui.screen.pw_designer_code.code.text
+  planet = codes.decode_body(code:sub(5)).planets[1]
+  check("a changed import is shared as a remix: own id, new author, credit", planet.id ~= "brim0001" and
+    planet.author == player.name and planet.credits and planet.credits[1].name == "Brimstone" and
+    planet.credits[1].author == author, serpent.line({planet.id, planet.author, planet.credits}))
+  check("the designer keeps the remix", R("designer_designs")[brim_index].id == planet.id and
+    R("designer_designs")[brim_index]._original == nil)
+  check("the Share window says so", find(player.gui.screen.pw_designer_code, function(t, el)
+    return el.type == "label" and type(el.caption) == "table" and el.caption[1] == "planet-workshop-designer.now-remix" end) ~= nil)
+  local problems = {}
+  local p = spec.normalize(planet, problems)
+  check("the remix code is a good planet", p and #problems == 0 and p.credits[1].author == author, serpent.line(problems))
+
+  -- a pack: tick two more planets (each tick remakes the Share window)
+  for _ = 1, 2 do
+    local box = find(player.gui.screen.pw_designer_code, function(t, el) return t.pw == "share-pick" and el.enabled and not el.state end)
+    box.state = true
+    R("designer_event", "on_gui_checked_state_changed", {element = box, player_index = P})
+  end
+  code = player.gui.screen.pw_designer_code.code.text
+  local pack = codes.decode_body(code:sub(5))
+  check("a pack code holds three planets", pack and #pack.planets == 3, pack and #pack.planets)
+  local before = #R("designer_designs")
+  local n = R("designer_import", P, code)
+  check("importing the pack brings all three (as updates of the same planets)", n == 3 and #R("designer_designs") == before, n)
+
+  -- a copy of someone else's planet is a remix
+  for i, d in ipairs(R("designer_designs")) do
+    if d.id == "verd0005" then
+      dd = find(root(player), function(t) return t.pw == "select-design" end)
+      dd.selected_index = i
+      R("designer_event", "on_gui_selection_state_changed", {element = dd, player_index = P})
+    end
+  end
+  R("designer_do", P, "copy")
+  local all = R("designer_designs")
+  local copy = all[#all]
+  check("Copy of someone else's planet credits them", copy.author == player.name and copy.credits and
+    copy.credits[1].name == "Verdant" and copy._original == nil, serpent.line(copy.credits))
+
+  -- a planet made with a mod this game doesn't have
+  local foreign = codes.decode_body(R("designer_code", P):sub(5)).planets[1]
+  foreign.id = "modd0001"
+  foreign.name = "Modded"
+  foreign.mods = {["no-such-mod"] = "1.0.0"}
+  local modcode = codes.encode({foreign})
+  R("designer_import", P, modcode)
+  local list = R("designer_checks", P)
+  check("Checks warn about a mod that isn't here", has_check(list, "needs-mod", "warning"), check_keys(list))
+
+  -- the share picture (headless can't draw, but the card is made and the call works)
+  local ok, err = pcall(R, "designer_do", P, "share-picture")
+  check("Save share picture works", ok, err)
+
+  -- the planet's description in game says who made it
+  local desc = serpent.line(prototypes.space_location["pw-brim0001"].localised_description)
+  check("a planet's description says who made it", desc:find("planet-workshop.made-by", 1, true) ~= nil, desc)
+end
+
 -- roundtrip: the planet designed in the designer suite, loaded from its code ------------------------------------
 
 local function test_roundtrip()
@@ -1162,6 +1257,7 @@ local SUITES = {
   testplay = test_testplay,
   startarea = test_startarea,
   startplanet = test_startplanet,
+  share = test_share,
   -- a planet given the preview's seed generates exactly the preview (what hand-made start areas rely on)
   sameworld = function()
     local player = game.players[1]

@@ -459,7 +459,16 @@ function Builder:build_planet()
   planet.persistent_ambient_sounds = util.table.deepcopy(sky.persistent_ambient_sounds)
   planet.name = self:name()
   planet.localised_name = literal(p.name)
-  planet.localised_description = literal(p.description)
+  -- its description, then who made it (and who it's based on)
+  local about = {""}
+  if p.description then about[#about + 1] = p.description end
+  if p.author then
+    about[#about + 1] = {"", (#about > 1 and "\n" or ""), {"planet-workshop.made-by", p.author}}
+  end
+  for _, c in ipairs(p.credits or {}) do
+    about[#about + 1] = {"", "\n", {"planet-workshop.based-on", c.name, c.author}}
+  end
+  planet.localised_description = #about > 1 and about or nil
   planet.icons = tinted(icons_of(base), p.look.tint)
   planet.icon = nil
   planet.starmap_icons = tinted({{icon = base.starmap_icon, icon_size = base.starmap_icon_size or 512}}, p.look.tint)
@@ -540,6 +549,10 @@ function M.build_all(found, problems)
   local seen = {}
   for _, entry in ipairs(found) do
     local p = spec.normalize(entry.planet, problems)
+    -- the other mods it was made with: say which are missing (what came from them is left out, with its own problem)
+    for name in pairs(p and p.mods or {}) do
+      if not mods[name] then problems[#problems + 1] = {"planet-workshop-problem.needs-mod", p.name, name} end
+    end
     if p and seen[p.id] then
       problems[#problems + 1] = {"planet-workshop-problem.duplicate", p.name}
     elseif p then
@@ -554,7 +567,7 @@ function M.build_all(found, problems)
       report.planets[#report.planets + 1] = {
         id = p.id, name = p.name, author = p.author, planet = b:name(), discovery = b:name("discovery"),
         pack = p.science and b:name("pack") or nil, code = entry.code, picture = b.picture, sky = b.sky,
-        starting = b.starting, start = p.start,
+        starting = b.starting, start = p.start, credits = p.credits,
       }
     end
   end

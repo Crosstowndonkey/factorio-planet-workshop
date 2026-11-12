@@ -124,5 +124,8 @@
   ],
   "enemies": {
     "kind": "dragons"
+  },
+  "mods": {
+    "no-such-mod": "1.2.3"
   }
 }

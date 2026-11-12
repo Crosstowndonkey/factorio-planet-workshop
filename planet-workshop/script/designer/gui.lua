@@ -4,12 +4,12 @@
 -- rebuilds the window; dragging a slider only updates its label, so dragging stays smooth.
 
 local catalog = require("__planet-workshop__.lib.catalog")
-local codes = require("__planet-workshop__.lib.codes")
 local spec = require("__planet-workshop__.lib.spec")
 local state = require("__planet-workshop__.script.designer.state")
 local preview = require("__planet-workshop__.script.designer.preview")
 
 local checks = require("__planet-workshop__.script.designer.checks")
+local share = require("__planet-workshop__.script.designer.share")
 local startarea = require("__planet-workshop__.script.startarea")
 
 local W = require("__planet-workshop__.script.designer.widgets")
@@ -49,7 +49,15 @@ local dropdown, amount_slider, number_slider, checkbox = W.dropdown, W.amount_sl
 
 -- The world and planet sections ----------------------------------------------------------------------------------------------------
 
-local function tab_general(c, d)
+local function tab_general(c, d, ps, player)
+  -- someone else's planet, and who it's based on
+  if share.foreign(d, player) then
+    local banner = hint(c, L("imported-banner", d.author or "?"))
+    banner.style.font_color = {1, 0.85, 0.5}
+  end
+  for _, credit in ipairs(d.credits or {}) do
+    hint(c, L("based-on", credit.name or "?", credit.author or "?"))
+  end
   local f = row(c, L("name"))
   local name = f.add{type = "textfield", text = d.name or "", tags = {pw = "text", path = "name"}}
   name.style.width = 300
@@ -382,7 +390,7 @@ function M.build(player)
   scroll.style.padding = 8
   local content = scroll.add{type = "flow", direction = "vertical"}
   content.style.vertical_spacing = 6
-  BUILDERS[section](content, design, ps)
+  BUILDERS[section](content, design, ps, player)
 
   local right = body.add{type = "frame", name = "right", direction = "vertical", style = "inside_deep_frame"}
   local surface = game.surfaces[preview.surface_name(player.index)]
@@ -475,34 +483,19 @@ local function popup(player, name, caption)
   return frame
 end
 
-local function safe_file_name(text)
-  local name = (text or "planet"):gsub("[^%w%-_ ]", ""):gsub("%s+", "-")
-  if name == "" then name = "planet" end
-  return name:sub(1, 40)
-end
-
+--- The Share window (Get code): the code for this planet, or a pack with others, and the share picture.
 function M.show_code(player)
   local design = state.current(player)
-  local code = codes.encode({design})
-  local file = "planet-workshop/" .. safe_file_name(design.name) .. "-" .. design.id .. ".txt"
-  helpers.write_file(file, code .. "\n", false, player.index)
-  local frame = popup(player, CODE, L("code-title", design.name))
-  local hint_label = frame.add{type = "label", caption = L("code-hint", file)}
-  hint_label.style.single_line = false
-  hint_label.style.maximal_width = 600
   local n = checks.count(checks.run(design, state.player(player.index)))
+  local warnings
   if n.problem + n.warning > 0 then
-    local warn = frame.add{type = "label", caption = {"", "[img=utility/warning_icon] ",
-      L("code-has-warnings", M.count_text({problem = n.problem, warning = n.warning, note = 0}))}}
-    warn.style.single_line = false
-    warn.style.maximal_width = 600
+    warnings = L("code-has-warnings", M.count_text({problem = n.problem, warning = n.warning, note = 0}))
   end
-  local box = frame.add{type = "text-box", name = "code", text = code}
-  box.word_wrap = true
-  box.style.width = 600
-  box.style.height = 160
-  box.select_all()
-  box.focus()
+  local code, remixed = share.show(player, popup, warnings)
+  if remixed > 0 then -- (its id and author changed: show that in the main window, keeping the Share window on top)
+    M.build(player)
+    if player.gui.screen[CODE] then player.gui.screen[CODE].bring_to_front() end
+  end
   return code
 end
 
