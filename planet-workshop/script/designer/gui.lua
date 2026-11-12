@@ -9,6 +9,8 @@ local spec = require("__planet-workshop__.lib.spec")
 local state = require("__planet-workshop__.script.designer.state")
 local preview = require("__planet-workshop__.script.designer.preview")
 
+local checks = require("__planet-workshop__.script.designer.checks")
+
 local W = require("__planet-workshop__.script.designer.widgets")
 local production = require("__planet-workshop__.script.designer.production")
 
@@ -34,6 +36,7 @@ local GROUPS = {
   {name = "world", sections = {"general", "terrain", "nature", "resources", "enemies"}},
   {name = "planet", sections = {"physics", "space", "look"}},
   {name = "production", sections = {"ores", "science", "recipes", "research"}},
+  {name = "test", sections = {"checks", "testplay"}},
 }
 M.SECTIONS = {}
 for _, g in ipairs(GROUPS) do
@@ -210,9 +213,78 @@ local function tab_look(c, d, ps)
   hint(c, L("look-hint"))
 end
 
+-- Checks and test play -------------------------------------------------------------------------------------------
+
+local LEVEL_ICON = {problem = "utility/danger_icon", warning = "utility/warning_icon", note = "utility/tip_icon"}
+
+local function check_line(parent, c, with_button)
+  local f = parent.add{type = "flow", direction = "horizontal"}
+  f.style.vertical_align = "center"
+  local label = f.add{type = "label", caption = {"", "[img=" .. LEVEL_ICON[c.level] .. "] ", c.message}}
+  label.style.single_line = false
+  label.style.maximal_width = with_button and LEFT_WIDTH - 130 or LEFT_WIDTH + VIEW - 140
+  if with_button and c.section then
+    local gap = f.add{type = "empty-widget"}
+    gap.style.horizontally_stretchable = true
+    f.add{type = "button", caption = L("go-there"), tags = {pw = "section", key = c.section}}.style.minimal_width = 90
+  end
+end
+
+local function tab_checks(c, d, ps)
+  hint(c, L("checks-hint"))
+  local list = checks.run(d, ps)
+  if #list == 0 then
+    c.add{type = "label", caption = {"", "[img=utility/check_mark_green] ", L("checks-none")}}
+  end
+  for _, level in ipairs(checks.LEVELS) do
+    local first = true
+    for _, check in ipairs(list) do
+      if check.level == level then
+        if first then heading(c, L("checks-" .. level)) end
+        first = false
+        check_line(c, check, true)
+      end
+    end
+  end
+  if not ps.placed then hint(c, L("checks-preview-pending")) end
+end
+
+local TEST_KITS, TEST_RESEARCH = {"landing", "none"}, {"all", "none"}
+
+local function tab_testplay(c, d, ps)
+  hint(c, L("testplay-hint"))
+  local opts = ps.test or {}
+  local function pick(caption, key, values, current, tooltip)
+    local f = row(c, caption, tooltip)
+    local items = {}
+    for i, v in ipairs(values) do items[i] = L("test-" .. key .. "-" .. v) end
+    f.add{type = "drop-down", items = items, selected_index = index_of(values, current),
+      tags = {pw = "test-pick", key = key, values = values}}
+  end
+  pick(L("test-kit"), "kit", TEST_KITS, opts.kit or "landing", L("test-kit-tooltip"))
+  pick(L("test-research"), "research", TEST_RESEARCH, opts.research or "all")
+  c.add{type = "checkbox", caption = L("test-free-crafting"), state = opts.free_crafting == true,
+    tooltip = L("test-free-crafting-tooltip"), tags = {pw = "test-check", key = "free_crafting"}}
+  if d.enemies.kind ~= "none" then
+    c.add{type = "checkbox", caption = L("test-enemies"), state = opts.enemies ~= false,
+      tags = {pw = "test-check", key = "enemies"}}
+  end
+  local start = c.add{type = "button", caption = L("test-start"), style = "confirm_button_without_tooltip",
+    tags = {pw = "test-start"}}
+  start.style.top_margin = 8
+  heading(c, L("test-what"))
+  hint(c, L("test-what-real"))
+  if d.physics.freezing or d.physics.lightning then hint(c, L("test-note-real")) end
+  local own = #(d.ores or {}) > 0 or d.science ~= nil or #(d.recipes or {}) > 0 or #(d.technologies or {}) > 0
+  if own then
+    hint(c, prototypes.space_location["pw-" .. d.id] and L("test-note-loaded") or L("test-note-not-loaded"))
+  end
+end
+
 local BUILDERS = {general = tab_general, terrain = tab_terrain, nature = tab_nature, resources = tab_resources,
   enemies = tab_enemies, physics = tab_physics, space = tab_space, look = tab_look,
-  ores = production.ores, science = production.science, recipes = production.recipes, research = production.research}
+  ores = production.ores, science = production.science, recipes = production.recipes, research = production.research,
+  checks = tab_checks, testplay = tab_testplay}
 
 -- The window ----------------------------------------------------------------------------------------------------
 
@@ -220,11 +292,6 @@ function M.destroy(player)
   for _, name in ipairs{ROOT, CODE, IMPORT} do
     if player.gui.screen[name] then player.gui.screen[name].destroy() end
   end
-end
-
-local function problems_text(ps)
-  if not ps.problems or #ps.problems == 0 then return nil end
-  return ps.problems
 end
 
 function M.build(player)
@@ -312,7 +379,8 @@ function M.build(player)
   controls.add{type = "button", caption = L("new-seed"), tooltip = L("new-seed-tooltip"), tags = {pw = "reseed"}}
   controls.add{type = "button", caption = ps.walking and L("back") or L("walk"), tooltip = L("walk-tooltip"),
     tags = {pw = "walk"}}
-  controls.add{type = "label", caption = L("preview-note")}.style.font_color = {0.7, 0.7, 0.7}
+  controls.add{type = "button", caption = L("test-play"), tooltip = L("test-play-tooltip"), tags = {pw = "test-start"},
+    style = "confirm_button_without_tooltip"}
 
   -- problems
   frame.add{type = "flow", name = "status", direction = "vertical"}
@@ -326,23 +394,39 @@ function M.has_camera(player)
   return frame ~= nil and frame.body ~= nil and frame.body.right ~= nil and frame.body.right.camera ~= nil
 end
 
---- Refreshes the problems line (after a new preview) without rebuilding the window, so a slider being dragged
---- isn't interrupted.
+--- "2 warnings, 1 note" (only the levels there are).
+function M.count_text(n)
+  local text = {""}
+  for _, level in ipairs(checks.LEVELS) do
+    if n[level] > 0 then
+      if #text > 1 then text[#text + 1] = ", " end
+      text[#text + 1] = L("count-" .. level, n[level])
+    end
+  end
+  return text
+end
+
+--- Refreshes the checks line at the bottom (after a change or a new preview) without rebuilding the window, so
+--- a slider being dragged isn't interrupted.
 function M.update_status(player)
   local frame = player.gui.screen[ROOT]
   if not (frame and frame.status) then return end
-  local ps = state.player(player.index)
+  local design, ps = state.current(player)
   local status = frame.status
   status.clear()
-  local problems = problems_text(ps)
-  if problems then
-    for i = 1, math.min(#problems, 4) do
-      local label = status.add{type = "label", caption = {"", "[img=utility/warning_icon] ", problems[i]}}
-      label.style.single_line = false
-      label.style.maximal_width = LEFT_WIDTH + VIEW
-    end
-  else
-    status.add{type = "label", caption = L("no-problems")}.style.font_color = {0.6, 0.8, 0.6}
+  local list = checks.run(design, ps)
+  local n = checks.count(list)
+  local f = status.add{type = "flow", direction = "horizontal"}
+  f.style.vertical_align = "center"
+  if #list == 0 then
+    f.add{type = "label", caption = {"", "[img=utility/check_mark_green] ", L("no-problems")}}.style.font_color = {0.6, 0.8, 0.6}
+    return
+  end
+  f.add{type = "label", caption = M.count_text(n), style = "caption_label"}
+  f.add{type = "button", caption = L("checks-open"), tags = {pw = "section", key = "checks"}}
+  -- the most important two
+  for i = 1, math.min(#list, 2) do
+    if list[i].level ~= "note" then check_line(status, list[i], false) end
   end
 end
 
@@ -377,6 +461,13 @@ function M.show_code(player)
   local hint_label = frame.add{type = "label", caption = L("code-hint", file)}
   hint_label.style.single_line = false
   hint_label.style.maximal_width = 600
+  local n = checks.count(checks.run(design, state.player(player.index)))
+  if n.problem + n.warning > 0 then
+    local warn = frame.add{type = "label", caption = {"", "[img=utility/warning_icon] ",
+      L("code-has-warnings", M.count_text({problem = n.problem, warning = n.warning, note = 0}))}}
+    warn.style.single_line = false
+    warn.style.maximal_width = 600
+  end
   local box = frame.add{type = "text-box", name = "code", text = code}
   box.word_wrap = true
   box.style.width = 600

@@ -45,29 +45,32 @@ function M.new_id(player)
   return table.concat(id)
 end
 
---- A blank planet: plain sand and water, nothing else; everything is chosen in the designer.
+--- Everything a planet has, as on a blank planet: plain sand and water, nothing else.
+M.DEFAULTS = {
+  name = "New planet",
+  description = "",
+  look = {picture = "auto", sky = "auto"},
+  space = {from = "nauvis", length = 15000, distance = 20, orientation = 0.5, magnitude = 1, asteroids = "nauvis_vulcanus"},
+  physics = {gravity = 10, pressure = 1000, magnetic_field = 90, solar_power = 100, day_length = 7, freezing = false,
+    lightning = false},
+  terrain = {
+    shape = "lakes", liquid = "water", liquid_amount = 1, patch_size = 1, decorations = true,
+    ground = {{tile = "sand-1", share = 1}},
+    cliffs = {style = "none", amount = 1},
+    plants = {styles = {}, amount = 1},
+    rocks = {styles = {}, amount = 1},
+  },
+  enemies = {kind = "none", amount = 1},
+}
+
+--- A blank planet; everything is chosen in the designer.
 function M.blank(player)
-  return {
-    id = M.new_id(player),
-    name = "New planet",
-    author = player.name,
-    description = "",
-    look = {picture = "auto", sky = "auto"},
-    space = {from = "nauvis", length = 15000, distance = 20, orientation = 0.5, magnitude = 1, asteroids = "nauvis_vulcanus"},
-    physics = {gravity = 10, pressure = 1000, magnetic_field = 90, solar_power = 100, day_length = 7, freezing = false,
-      lightning = false},
-    terrain = {
-      shape = "lakes", liquid = "water", liquid_amount = 1, patch_size = 1, decorations = true,
-      ground = {{tile = "sand-1", share = 1}},
-      cliffs = {style = "none", amount = 1},
-      plants = {styles = {}, amount = 1},
-      rocks = {styles = {}, amount = 1},
-    },
-    enemies = {kind = "none", amount = 1},
-    resources = {},
-    ores = {}, recipes = {}, technologies = {},
-    discovery = util.table.deepcopy(M.DEFAULT_DISCOVERY),
-  }
+  local p = util.table.deepcopy(M.DEFAULTS)
+  p.id = M.new_id(player)
+  p.author = player.name
+  p.resources, p.ores, p.recipes, p.technologies = {}, {}, {}, {}
+  p.discovery = util.table.deepcopy(M.DEFAULT_DISCOVERY)
+  return p
 end
 
 --- The planet a player is working on (making a blank one if there are none).
@@ -124,6 +127,17 @@ function M.tidy(d)
     end
     return list
   end
+  -- parts missing (a planet imported by an older version, which kept codes as they were): the blank planet's
+  local function fill(t, defaults)
+    for k, v in pairs(defaults) do
+      if t[k] == nil then
+        t[k] = util.table.deepcopy(v)
+      elseif type(v) == "table" and type(t[k]) == "table" and v[1] == nil then
+        fill(t[k], v)
+      end
+    end
+  end
+  fill(d, M.DEFAULTS)
   d.ores = type(d.ores) == "table" and d.ores or {}
   d.resources = type(d.resources) == "table" and d.resources or {}
   d.recipes = type(d.recipes) == "table" and d.recipes or {}

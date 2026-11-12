@@ -3,8 +3,11 @@
 A Factorio 2.1 + Space Age mod: design your own planets in an in-game Planet Designer, then add them to any Space
 Age save and share them with other players as **planet codes** (like blueprint strings).
 
-**Status: step 3 (production in the designer) is done**: the designer also edits the planet's own ores and
-fluids, science pack, recipes and research. **Earlier: step 2 (the Planet Designer).** Start **New game > Scenarios > Planet Designer (Planet
+**Status: step 4 (test play and checks) is done**: in the designer, **Test play** lands you on the preview planet
+as a character (with a starter kit and the planet's own gravity, pressure, solar power and day length), and
+**Checks** lists what could make a planet unplayable (no rocket silo, ores that never generate, pentapods without
+swamp, research loops...) with a button to the section that fixes each. **Earlier: step 3 (production) and step
+2 (the Planet Designer).** Start **New game > Scenarios > Planet Designer (Planet
 Workshop)** to design planets with a live preview, then press **Get code**.
 
 **Earlier: step 1 (planet generation).** A planet code pasted into the mod's startup setting becomes a real
@@ -57,7 +60,11 @@ References to the planet's own things start with `@`: `@pack`, `@ore:<key>`, `@r
 mod: `script/designer/state.lua` (the designs, in the code format, in `storage.designer`), `gui.lua` (the window
 and the world/planet sections), `production.lua` (ores, science pack, recipes, research), `widgets.lua` (building
 blocks; every input's tags say which field it changes), `preview.lua` (a preview surface per player) and
-`init.lua` (events and actions). A planet's own ores show in the preview as hidden stand-ins of their base look. The preview camera only draws charted ground, so the preview area is charted after each change.
+`init.lua` (events and actions), `checks.lua` (the Checks list) and `testplay.lua` (test play). A planet's own
+ores show in the preview as hidden stand-ins of their base look, or as the real ores if the planet is loaded. Each
+finished preview runs the starting-resources safety net, like the real planet's surface. Test play sets the
+planet's surface properties on the preview (`LuaSurface.set_property`) and gives the tester their own force
+(`pw-test-<player>`); freezing and lightning are planet-prototype only, so test play can't show them. The preview camera only draws charted ground, so the preview area is charted after each change.
 
 ## How a planet's world is generated
 
@@ -84,7 +91,7 @@ choices live in `lib/catalog.lua`.
 
 ## Developing
 
-- `tools/run_tests.sh [bridge terrain designer roundtrip scenario codec added]` runs the headless test suites in a throwaway folder (never
+- `tools/run_tests.sh [bridge terrain designer roundtrip testplay scenario codec added]` runs the headless test suites in a throwaway folder (never
   `~/.factorio`). `KEEP=1` keeps the folder for reading logs.
   - **bridge**: the test planets (including Frostbite, which is full of mistakes) plus a broken code and a
     too-new code, loaded into a new game: prototypes, generated terrain and ore, research, and real assemblers
@@ -95,6 +102,9 @@ choices live in `lib/catalog.lua`.
     that the preview's map settings match the finished planet's.
   - **roundtrip**: the planet the designer suite built with the real controls (own ore and fluid, pack, recipe,
     research) is loaded from its code in a new game and checked.
+  - **testplay**: every kind of check on a planet full of mistakes (and none once fixed), a loaded planet's real
+    ores in the preview, and test play: the body, kit, force, research, physics, enemies, coming back, the
+    options, and dying.
   - **scenario**: the Planet Designer scenario starts on a headless server without errors.
   - **codec**: codes made in game with `helpers.encode_string` read back by the mod's decoder; a 1.5 MB planet;
     428 damaged or cut codes that must fail politely; JSON edge cases.

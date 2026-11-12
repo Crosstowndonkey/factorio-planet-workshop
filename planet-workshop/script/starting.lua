@@ -9,7 +9,8 @@
 local M = {}
 
 M.SEARCH = 200 -- tiles from the landing spot
-local GENERATE = 7 -- chunks around the landing spot generated before checking
+M.GENERATE = 7 -- chunks around the landing spot generated before checking
+local GENERATE = M.GENERATE
 
 local function planet_info(name)
   local data = prototypes.mod_data["planet-workshop-report"]
@@ -69,17 +70,16 @@ local function place_patch(surface, res, rng)
   return false
 end
 
---- Makes sure every starting resource of `planet_name` is near the landing spot on `surface`.
---- Returns the list of resources it had to place.
-function M.ensure(surface, planet_name)
-  local info = planet_info(planet_name)
-  if not info or not info.starting or #info.starting == 0 then return {} end
+--- Makes sure every resource in `list` ({{entity, fluid, richness}}, from lib/mapgen.lua) is near the landing spot
+--- on `surface`. Returns the list of resources it had to place.
+function M.ensure_list(surface, list)
+  if not list or #list == 0 then return {} end
   surface.request_to_generate_chunks({0, 0}, GENERATE)
   surface.force_generate_chunk_requests()
   local rng = game.create_random_generator(surface.map_gen_settings.seed % 4294967295)
   local placed = {}
   local area = {{-M.SEARCH, -M.SEARCH}, {M.SEARCH, M.SEARCH}}
-  for _, res in ipairs(info.starting) do
+  for _, res in ipairs(list) do
     local near = false
     for _, e in pairs(surface.find_entities_filtered{name = res.entity, area = area}) do
       if e.position.x ^ 2 + e.position.y ^ 2 <= M.SEARCH ^ 2 then
@@ -90,6 +90,12 @@ function M.ensure(surface, planet_name)
     if not near and place_patch(surface, res, rng) then placed[#placed + 1] = res.entity end
   end
   return placed
+end
+
+--- The same for a loaded planet (its starting resources come from the loader's report).
+function M.ensure(surface, planet_name)
+  local info = planet_info(planet_name)
+  return M.ensure_list(surface, info and info.starting)
 end
 
 function M.on_surface_created(event)

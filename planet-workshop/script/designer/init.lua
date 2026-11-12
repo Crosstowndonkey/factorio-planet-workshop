@@ -10,6 +10,8 @@ local preview = require("__planet-workshop__.script.designer.preview")
 local gui = require("__planet-workshop__.script.designer.gui")
 local W = require("__planet-workshop__.script.designer.widgets")
 local production = require("__planet-workshop__.script.designer.production")
+local checks = require("__planet-workshop__.script.designer.checks")
+local testplay = require("__planet-workshop__.script.designer.testplay")
 
 local M = {}
 
@@ -58,7 +60,7 @@ function M.set(player, path, value, rebuild)
   if path == "space.orientation" then value = (value / 360) % 1 end
   state.set(design, path, value)
   if state.affects_map(path) then preview.schedule(player.index, rebuild and 1 or 30) end
-  if rebuild then gui.build(player) end
+  if rebuild then gui.build(player) else gui.update_status(player) end
 end
 
 -- Actions (buttons) ------------------------------------------------------------------------------------------
@@ -205,7 +207,19 @@ ACTIONS["add-technology"] = function(player)
 end
 
 ACTIONS["get-code"] = function(player) gui.show_code(player) end
+ACTIONS["test-start"] = function(player) testplay.request(player) end
+ACTIONS["test-stop"] = function(player) testplay.stop(player) end
 ACTIONS["import-open"] = function(player) gui.show_import(player) end
+
+--- A planet from a code (cleaned by spec.normalize, so every field is there) in the form the designer edits.
+function M.editable(p)
+  if not p then return nil end
+  p.ore_keys, p.recipe_keys, p.tech_keys = nil, nil, nil
+  for _, res in ipairs(p.resources) do
+    if res.starting == "yes" then res.starting = true elseif res.starting == "no" then res.starting = false else res.starting = nil end
+  end
+  return state.tidy(p)
+end
 
 --- Adds the planets in a code to the designs (a planet with the same id replaces the old one: it's an update).
 --- Returns how many were added or updated, and the problems.
@@ -213,17 +227,18 @@ function M.import(player, text)
   local found, problems = codes.read_all(text)
   local designs, count = storage.designer.designs, 0
   for _, entry in ipairs(found) do
-    if spec.normalize(entry.planet, problems) then
+    local planet = M.editable(spec.normalize(entry.planet, problems))
+    if planet then
       local replaced = false
       for i, d in ipairs(designs) do
-        if d.id == entry.planet.id then
-          designs[i] = entry.planet
+        if d.id == planet.id then
+          designs[i] = planet
           replaced = true
           state.player(player.index).current = i
         end
       end
       if not replaced then
-        table.insert(designs, entry.planet)
+        table.insert(designs, planet)
         state.player(player.index).current = #designs
       end
       count = count + 1
@@ -333,6 +348,8 @@ function M.on_gui_selection_state_changed(event)
     if kind == "unlock-recipe" or kind == "change-recipe-productivity" then effect.recipe = "@pack" end
     if kind == "change-recipe-productivity" then effect.change = 0.1 elseif kind ~= "unlock-recipe" then effect.modifier = 0.1 end
     M.set(player, tags.path, effect, true)
+  elseif tags.pw == "test-pick" then
+    testplay.options(ps)[tags.key] = tags.values[el.selected_index]
   elseif tags.pw == "select-design" then
     ps.current = el.selected_index
     ps.confirm_delete = nil
@@ -360,6 +377,8 @@ function M.on_gui_checked_state_changed(event)
       design.science = nil
     end
     gui.build(player)
+  elseif tags.pw == "test-check" then
+    testplay.options(state.player(player.index))[tags.key] = el.state
   elseif tags.pw == "style" then
     local list = state.get(design, tags.path) or {}
     local kept = {}
@@ -404,14 +423,28 @@ end
 
 function M.on_tick()
   if not state.active() then return end
-  preview.generate_due()
+  for _, index in ipairs(preview.generate_due()) do -- a preview finished: the checks may have changed
+    local player = game.get_player(index)
+    if player and player.valid and not state.player(index).testing then
+      if state.player(index).section == "checks" then gui.build(player) else gui.update_status(player) end
+    end
+  end
   for _, index in ipairs(preview.take_due()) do
     local player = game.get_player(index)
-    if player and player.valid then
+    if player and player.valid and not state.player(index).testing then
       preview.refresh(player)
       if player.gui.screen[gui.ROOT] and not gui.has_camera(player) then gui.build(player) else gui.update_status(player) end
     end
   end
+  testplay.on_tick()
+end
+
+function M.on_player_died(event)
+  if state.active() then testplay.on_player_died(event) end
+end
+
+function M.on_player_respawned(event)
+  if state.active() then testplay.on_player_respawned(event) end
 end
 
 function M.on_player_created(event)
@@ -444,6 +477,19 @@ M.remote = {
   -- runs a GUI handler on a real element, as if the player had used it
   designer_event = function(handler, event) M[handler](event) end,
   designer_player = function(player_index) return storage.designer and storage.designer.players[player_index] end,
+  designer_checks = function(player_index)
+    local player = game.get_player(player_index)
+    local design, ps = state.current(player)
+    return checks.run(design, ps)
+  end,
+  designer_settle = function(player_index) -- finish the preview now (generate it and run the safety net)
+    local surface = game.surfaces[preview.surface_name(player_index)]
+    surface.request_to_generate_chunks({0, 0}, preview.RADIUS)
+    surface.force_generate_chunk_requests()
+    if storage.designer.settling then storage.designer.settling[player_index] = nil end
+    preview.settle(player_index)
+    return state.player(player_index).placed
+  end,
   designer_preview_now = function(player_index)
     local player = game.get_player(player_index)
     refresh_now(player)

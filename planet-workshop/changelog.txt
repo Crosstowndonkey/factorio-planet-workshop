@@ -1,4 +1,20 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.0.5
+Date: 2026-11-12
+  Features:
+    - Test play: land on the designer's preview planet as a character and play it, with its own gravity,
+      pressure, solar power and day and night, awake enemies and a landing kit. Options: starter kit, research,
+      free hand-crafting, enemies. "Back to the designer" (or dying) ends it.
+    - Checks: a new designer section listing what could make a planet hard or impossible to play (rocket silos
+      or landing pads that can't be built, buildings that can't be built, no resources, an own ore that never
+      generates, pentapods without swamp, no water, recipes that make nothing or need fluids in the wrong
+      machine, missing things, research that needs itself, an unused pack...), each with a "Go there" button.
+      The bottom of the window sums them up, and Get code mentions any warnings.
+    - The preview runs the starting-resources safety net, as the real planet does.
+    - A planet that is already loaded shows its real ores in the preview and test play.
+  Bugfixes:
+    - Importing a hand-written code that left parts out could break the designer window.
+---------------------------------------------------------------------------------------------------
 Version: 0.0.4
 Date: 2026-11-12
   Features:

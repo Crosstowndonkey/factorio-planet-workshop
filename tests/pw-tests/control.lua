@@ -8,6 +8,8 @@
 --           uses exactly the map settings the finished planet gets
 --   added   the same codes added to a save that was made without them
 --   codec   codes made in game with helpers.encode_string read back by the mod's own decoder
+--   testplay the designer's checks (warnings for unplayable planets) and test play: landing as a character with
+--           the planet's physics, coming back, dying
 local codes = require("__planet-workshop__.lib.codes")
 local json = require("__planet-workshop__.lib.json")
 local base64 = require("__planet-workshop__.lib.base64")
@@ -283,6 +285,7 @@ local function test_terrain()
   check("brimstone: rocks", count(s, {name = catalog.ROCKS.rocks}) > 0, count(s, {name = catalog.ROCKS.rocks}))
   check("brimstone: cliffs", count(s, {type = "cliff"}) > 0, count(s, {type = "cliff"}))
   generate(s, 18) -- oil has no starting patch; regular patches start about 450 tiles out
+  if count(s, {name = "crude-oil"}) == 0 then generate(s, 28) end -- (on some map seeds the first is further)
   check("brimstone: crude oil further out", count(s, {name = "crude-oil"}) > 0)
   check("brimstone: oil wells don't bring snow", s.count_tiles_filtered{name = {"snow-flat", "snow-lumpy",
     "snow-patchy", "ice-rough"}} == 0)
@@ -461,7 +464,7 @@ local function test_designer()
   check("the preview camera is in the window", root(player) and root(player).body.right.camera ~= nil)
 
   -- every tab builds
-  for tab = 1, 8 do
+  for tab = 1, 14 do
     local ok, err = pcall(R, "designer_tab", player.index, tab)
     check("tab " .. tab .. " builds", ok, err)
   end
@@ -656,6 +659,170 @@ local function test_designer()
   end
 end
 
+-- testplay: checks and test play ----------------------------------------------------------------------------------
+
+local function has_check(list, key, level)
+  for _, c in ipairs(list) do
+    if c.message[1] == "planet-workshop-check." .. key and (level == nil or c.level == level) then return true end
+  end
+  return false
+end
+
+local function check_keys(list)
+  local keys = {}
+  for _, c in ipairs(list) do keys[#keys + 1] = c.level .. ":" .. tostring(c.message[1]):gsub("^planet%-workshop%-", "") end
+  return table.concat(keys, " ")
+end
+
+local function test_testplay()
+  local player = game.players[1]
+  local P = player.index
+  R("start_designer")
+  local list = R("designer_checks", P)
+  check("a blank planet: warned that it has no resources", has_check(list, "no-resources", "warning"), check_keys(list))
+  check("a blank planet: no problems", #list > 0 and list[1].level ~= "problem", check_keys(list))
+  check("a blank planet: every building can be built (space-only ones don't count)", not has_check(list, "cant-build"),
+    check_keys(list))
+
+  -- an unplayable planet
+  R("designer_set", P, "enemies.kind", "pentapods")
+  R("designer_set", P, "physics.pressure", 0)
+  R("designer_set", P, "terrain.liquid", "lava")
+  R("designer_do", P, "add-ore", {kind = "solid"})
+  R("designer_set", P, "resources", {})
+  R("designer_set", P, "recipes", {
+    {key = "r1", name = "Nothing", ingredients = {{name = "iron-plate", amount = 1}}, results = {}, category = "crafting", time = 1},
+    {key = "r2", name = "Hot soup", ingredients = {{name = "water", amount = 10}}, results = {{name = "iron-plate", amount = 1}},
+      category = "smelting", time = 1},
+    {key = "r3", name = "Ghost", ingredients = {{name = "@ore:gone", amount = 1}}, results = {{name = "iron-plate", amount = 1}},
+      category = "crafting", time = 1},
+  })
+  R("designer_set", P, "technologies", {
+    {key = "a", name = "Chicken", prerequisites = {"@tech:b"}, count = 10, time = 10, ingredients = {{name = "automation-science-pack", amount = 1}}, effects = {}},
+    {key = "b", name = "Egg", prerequisites = {"@tech:a"}, count = 10, time = 10, ingredients = {{name = "automation-science-pack", amount = 1}}, effects = {}},
+  })
+  R("designer_set", P, "science", {name = "Odd pack", ingredients = {{name = "@ore:ore1", amount = 1}}, count = 1, time = 5,
+    category = "crafting"})
+  list = R("designer_checks", P)
+  info("checks: " .. check_keys(list))
+  check("no air: no rocket silo", has_check(list, "no-rocket-silo", "warning"))
+  check("no air: other buildings that can't be built", has_check(list, "cant-build", "note"))
+  check("pentapods without slime", has_check(list, "pentapods-need-slime", "warning"))
+  check("lava: no water", has_check(list, "no-water", "note"))
+  check("an own ore that never generates", has_check(list, "ore-not-generated", "warning"))
+  check("no resources at all", has_check(list, "no-resources", "warning"))
+  check("a recipe that makes nothing", has_check(list, "makes-nothing", "warning"))
+  check("a fluid in a furnace recipe", has_check(list, "fluid-needs-machine", "warning"))
+  check("a reference to an ore that doesn't exist", has_check(list, "missing-ref", "warning"))
+  check("research that needs itself", has_check(list, "research-loop", "warning"))
+  check("research with no rewards", has_check(list, "no-rewards", "note"))
+  check("a pack no research uses", has_check(list, "pack-unused", "note"))
+  check("problems and warnings come before notes", list[#list].level == "note")
+  check("checks point to the section to fix them in", list[1].section ~= nil)
+  for _, section in ipairs{"checks", "testplay"} do
+    local ok, err = pcall(R, "designer_tab", P, section)
+    check("the " .. section .. " section builds", ok, err)
+  end
+  local ok = pcall(R, "designer_do", P, "get-code")
+  check("the code window opens with warnings", ok and player.gui.screen.pw_designer_code ~= nil)
+  R("designer_do", P, "close", {window = "pw_designer_code"})
+
+  -- fixed
+  R("designer_set", P, "physics.pressure", 1000)
+  R("designer_set", P, "terrain.liquid", "slime")
+  R("designer_set", P, "resources", {{resource = "@ore:ore1", frequency = 1, size = 1, richness = 1}})
+  R("designer_set", P, "recipes", {})
+  R("designer_set", P, "technologies", {
+    {key = "a", name = "Chicken", prerequisites = {"@discovery"}, count = 10, time = 10, ingredients = {{name = "@pack", amount = 1}},
+      effects = {{type = "laboratory-speed", modifier = 0.1}}},
+  })
+  list = R("designer_checks", P)
+  check("fixed planet: no problems or warnings", #list == 0 or list[1].level == "note", check_keys(list))
+
+  -- a loaded planet's own ores are the real ones in the preview
+  R("designer_import", P, settings.startup["planet-workshop-planets"].value)
+  for i, d in ipairs(R("designer_designs")) do
+    if d.id == "brim0001" then
+      local dd = find(root(player), function(t) return t.pw == "select-design" end)
+      dd.selected_index = i
+      R("designer_event", "on_gui_selection_state_changed", {element = dd, player_index = P})
+    end
+  end
+  local mgs = game.surfaces["pw-preview-" .. P].map_gen_settings
+  check("a loaded planet's preview has its real ore", mgs.autoplace_settings.entity.settings["pw-brim0001-ore-sulfite"] ~= nil)
+
+  -- a planet to test play: iron, biters, its own physics
+  R("designer_do", P, "new")
+  R("designer_set", P, "name", "Testbed")
+  R("designer_set", P, "resources", {{resource = "iron-ore", frequency = 1, size = 1, richness = 1}})
+  R("designer_set", P, "enemies.kind", "biters")
+  R("designer_set", P, "physics.gravity", 5)
+  R("designer_set", P, "physics.pressure", 800)
+  R("designer_set", P, "physics.solar_power", 200)
+  R("designer_set", P, "physics.day_length", 10)
+  R("designer_do", P, "test-start")
+  check("starting right after a change waits for a fresh preview", player.controller_type == defines.controllers.god)
+
+  return 10, function()
+    local surface = game.surfaces["pw-preview-" .. P]
+    check("test play: the player has a body", player.controller_type == defines.controllers.character and player.character ~= nil)
+    check("test play: on the preview planet", player.surface == surface)
+    check("test play: the designer window is put away", root(player) == nil)
+    check("test play: the way back is on screen", player.gui.top.pw_test_bar ~= nil)
+    check("test play: the landing kit", player.character and
+      player.character.get_main_inventory().get_item_count("electric-mining-drill") == 20)
+    check("test play: its own force, everything researched", player.force.name == "pw-test-" .. P and
+      player.force.technologies["automation"].researched)
+    check("test play: the planet's gravity", math.abs(surface.get_property("gravity") - 5) < 0.001, surface.get_property("gravity"))
+    check("test play: the planet's pressure", math.abs(surface.get_property("pressure") - 800) < 0.001)
+    check("test play: solar power", math.abs(surface.solar_power_multiplier - 2) < 0.001, surface.solar_power_multiplier)
+    check("test play: day and night", not surface.always_day and surface.ticks_per_day == 36000, surface.ticks_per_day)
+    check("test play: enemies are awake", not surface.peaceful_mode)
+    check("test play: iron near the landing spot", nearest(surface, "iron-ore", 224) <= 200)
+    local built = surface.create_entity{name = "stone-furnace", position = {20, 20}, force = player.force}
+    check("test play: buildings can be built", built ~= nil)
+
+    R("designer_do", P, "test-stop")
+    check("back: no body", player.controller_type == defines.controllers.god and player.character == nil)
+    check("back: in the designer room", player.surface.name == "nauvis" and player.force.name == "player")
+    check("back: the window is back", root(player) ~= nil and player.gui.top.pw_test_bar == nil)
+    check("back: free crafting is off", not player.cheat_mode)
+
+    -- options: nothing researched, free crafting, no kit; then dying ends it
+    R("designer_tab", P, "testplay")
+    for key, value in pairs{kit = "none", research = "none"} do
+      local dd = find(root(player), function(t) return t.pw == "test-pick" and t.key == key end)
+      dd.selected_index = index_of_value(dd.tags.values, value)
+      R("designer_event", "on_gui_selection_state_changed", {element = dd, player_index = P})
+    end
+    for key, value in pairs{free_crafting = true, enemies = false} do
+      local box = find(root(player), function(t) return t.pw == "test-check" and t.key == key end)
+      box.state = value
+      R("designer_event", "on_gui_checked_state_changed", {element = box, player_index = P})
+    end
+    local start = find(root(player), function(t) return t.pw == "test-start" end)
+    R("designer_event", "on_gui_click", {element = start, player_index = P})
+    return 10, function()
+      check("test play again (options)", player.controller_type == defines.controllers.character and player.cheat_mode and
+        not player.force.technologies["automation"].researched and
+        player.character.get_main_inventory().get_item_count("electric-mining-drill") == 0)
+      check("enemies asleep when asked", surface.peaceful_mode)
+      player.character.die()
+      return 120, function()
+        check("dying ends test play", player.controller_type == defines.controllers.god and player.character == nil and
+          player.surface.name == "nauvis" and R("designer_player", P).testing == nil, player.controller_type)
+        check("dying: the window is back", root(player) ~= nil)
+        local placed = R("designer_settle", P)
+        check("the preview runs the starting safety net", type(placed) == "table")
+        return 1200, function()
+          check("no body turns up later", player.character == nil and player.controller_type == defines.controllers.god,
+            player.controller_type)
+        end
+      end
+    end
+  end
+end
+
 -- roundtrip: the planet designed in the designer suite, loaded from its code ------------------------------------
 
 local function test_roundtrip()
@@ -782,6 +949,7 @@ local SUITES = {
   designer = test_designer,
   roundtrip = test_roundtrip,
   codec = test_codec,
+  testplay = test_testplay,
 }
 
 -- A suite runs on tick 1; it may return a number of ticks and a function to finish its checks after that.
@@ -798,8 +966,12 @@ script.on_event(defines.events.on_tick, function(e)
     if e.tick >= later_tick then
       local fn = later
       later = nil
-      local ok, err = pcall(fn)
-      if not ok then check("suite ran to the end", false, err) end
+      local ok, wait, more = pcall(fn)
+      if not ok then check("suite ran to the end", false, wait) end
+      if ok and type(wait) == "number" and more then -- another step
+        later, later_tick = more, e.tick + wait
+        return
+      end
       finish()
     end
     return

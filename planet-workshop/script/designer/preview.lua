@@ -5,10 +5,11 @@ local spec = require("__planet-workshop__.lib.spec")
 local mapgen = require("__planet-workshop__.lib.mapgen")
 local lookup = require("__planet-workshop__.script.lookup")
 local state = require("__planet-workshop__.script.designer.state")
+local starting = require("__planet-workshop__.script.starting")
 
 local M = {}
 
-M.RADIUS = 6 -- chunks generated around the landing spot
+M.RADIUS = starting.GENERATE -- chunks generated around the landing spot (as much as the safety net looks at)
 
 function M.surface_name(player_index)
   return "pw-preview-" .. player_index
@@ -28,13 +29,15 @@ function M.evaluate(design, seed)
   return p, made, problems
 end
 
---- Regenerates a player's preview now. Returns the surface.
+--- Regenerates a player's preview now (not while they're test playing on it). Returns the surface.
 function M.refresh(player)
   local design, ps = state.current(player)
+  if ps.testing then return nil end
   local p, made, problems = M.evaluate(design, ps.seed)
   ps.problems = problems
   if not made then return nil end
   ps.picture, ps.sky = made.picture, made.sky
+  ps.starting, ps.pollutant, ps.placed = made.starting, made.pollutant, nil
   local name = M.surface_name(player.index)
   local surface = game.surfaces[name]
   if surface then
@@ -51,8 +54,29 @@ function M.refresh(player)
   return surface
 end
 
---- Asks for the preview's chunks for the players whose surface was just made or cleared.
+local function all_generated(surface)
+  for x = -M.RADIUS, M.RADIUS - 1 do
+    for y = -M.RADIUS, M.RADIUS - 1 do
+      if not surface.is_chunk_generated({x, y}) then return false end
+    end
+  end
+  return true
+end
+
+--- Runs the starting-resources safety net on a finished preview, as the real planet's surface will (so the
+--- preview shows what players find). Returns true if it ran.
+function M.settle(player_index)
+  local surface = game.surfaces[M.surface_name(player_index)]
+  local ps = state.player(player_index)
+  if not surface or ps.placed then return false end
+  ps.placed = starting.ensure_list(surface, ps.starting)
+  return true
+end
+
+--- Asks for the preview's chunks for the players whose surface was just made or cleared, charts them, and
+--- settles finished previews. Returns the players whose preview just finished (their checks may have changed).
 function M.generate_due()
+  local finished = {}
   for index, tick in pairs(storage.designer.generate or {}) do
     if game.tick >= tick then
       storage.designer.generate[index] = nil
@@ -61,6 +85,8 @@ function M.generate_due()
         surface.request_to_generate_chunks({0, 0}, M.RADIUS)
         storage.designer.chart = storage.designer.chart or {}
         storage.designer.chart[index] = game.tick + 600
+        storage.designer.settling = storage.designer.settling or {}
+        storage.designer.settling[index] = true
       end
     end
   end
@@ -72,10 +98,17 @@ function M.generate_due()
       if surface and player then
         local r = M.RADIUS * 32
         player.force.chart(surface, {{-r, -r}, {r, r}})
+        if (storage.designer.settling or {})[index] and all_generated(surface) then
+          storage.designer.settling[index] = nil
+          if M.settle(index) then finished[#finished + 1] = index end
+          storage.designer.chart[index] = math.max(game.tick + 60, until_tick) -- chart the added patches too
+          until_tick = storage.designer.chart[index]
+        end
       end
       if game.tick >= until_tick then storage.designer.chart[index] = nil end
     end
   end
+  return finished
 end
 
 --- Asks for a new preview soon (changes come in bursts while a slider is dragged).

@@ -14,11 +14,19 @@ end
 --- A lookup for one planet (its own ores show as the kit's stand-in ores).
 function M.for_planet(p)
   local info = kit_info()
-  -- each own ore shows as a stand-in of its base look (the 1st, 2nd... ore with that look)
+  -- Each own ore shows as a stand-in of its base look (the 1st, 2nd... ore with that look), unless this planet is
+  -- loaded (its code is in the mod setting): then its real ore exists and is used, so the preview and test play
+  -- have the real thing (as it was at the last restart).
   local stand_in, per_base = {}, {}
   for _, ore in ipairs(p.ores or {}) do
-    per_base[ore.base] = (per_base[ore.base] or 0) + 1
-    if per_base[ore.base] <= kit.PREVIEW_ORES then stand_in[ore.key] = kit.preview_ore(ore.base, per_base[ore.base]) end
+    local real = prototypes.entity["pw-" .. p.id .. "-ore-" .. ore.key]
+    local real_fluid = real and real.type == "resource" and (real.resource_category or ""):find("fluid") ~= nil
+    if real and real.type == "resource" and real_fluid == (ore.kind == "fluid") then
+      stand_in[ore.key] = real.name
+    else
+      per_base[ore.base] = (per_base[ore.base] or 0) + 1
+      if per_base[ore.base] <= kit.PREVIEW_ORES then stand_in[ore.key] = kit.preview_ore(ore.base, per_base[ore.base]) end
+    end
   end
   return {
     tile = function(name)

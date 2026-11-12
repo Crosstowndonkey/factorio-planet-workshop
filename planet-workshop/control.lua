@@ -31,6 +31,8 @@ end)
 
 script.on_event(defines.events.on_surface_created, starting.on_surface_created)
 script.on_event(defines.events.on_tick, designer.on_tick)
+script.on_event(defines.events.on_player_died, designer.on_player_died)
+script.on_event(defines.events.on_player_respawned, designer.on_player_respawned)
 script.on_event(defines.events.on_gui_click, designer.on_gui_click)
 script.on_event(defines.events.on_gui_value_changed, designer.on_gui_value_changed)
 script.on_event(defines.events.on_gui_selection_state_changed, designer.on_gui_selection_state_changed)
