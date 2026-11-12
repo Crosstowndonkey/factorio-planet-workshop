@@ -12,6 +12,8 @@ Date: 2026-11-12
       The bottom of the window sums them up, and Get code mentions any warnings.
     - The preview runs the starting-resources safety net, as the real planet does.
     - A planet that is already loaded shows its real ores in the preview and test play.
+  Changes:
+    - The Planet Designer scenario comes with its own small map, so starting it no longer shows the map generator.
   Bugfixes:
     - Importing a hand-written code that left parts out could break the designer window.
 ---------------------------------------------------------------------------------------------------

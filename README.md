@@ -56,7 +56,9 @@ References to the planet's own things start with `@`: `@pack`, `@ore:<key>`, `@r
 
 ## The Planet Designer
 
-`scenarios/planet-designer` only switches the designer on (remote `start_designer`); everything else is in the
+`scenarios/planet-designer` only switches the designer on (remote `start_designer`) and carries a tiny map
+(`blueprint.zip`, a 64x64 map made with `--create` and turned into a scenario map with `factorio --map2scenario`),
+so New game > Scenarios goes straight in without the map generator screen; everything else is in the
 mod: `script/designer/state.lua` (the designs, in the code format, in `storage.designer`), `gui.lua` (the window
 and the world/planet sections), `production.lua` (ores, science pack, recipes, research), `widgets.lua` (building
 blocks; every input's tags say which field it changes), `preview.lua` (a preview surface per player) and
