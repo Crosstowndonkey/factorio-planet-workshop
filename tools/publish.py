@@ -22,7 +22,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MOD = "planet-workshop"
 KEY_FILE = os.path.expanduser("~/.config/factorio/modportal-api-key")
 API = "https://mods.factorio.com/api/v2/mods"
-SOURCE = None  # the GitHub repo, once there is one
+SOURCE = "https://github.com/Crosstowndonkey/factorio-planet-workshop"
 DESCRIPTION = os.path.join(ROOT, "docs", "portal-description.md")
 GALLERY = os.path.join(ROOT, "docs", "gallery")
 # sent with every details update, so they can't be cleared by being left out

@@ -1,151 +1,25 @@
 ---------------------------------------------------------------------------------------------------
-Version: 0.9.2
+Version: 1.0.0
 Date: 2026-11-12
   Features:
-    - How it works: a guide to the whole process (design, check, get the code, save, add it in the main menu,
-      play) opens the first time the designer starts, and from the new ? button.
-    - The Get code window lists the steps to play a planet, including saving the designer game first and that
-      codes are added from the main menu.
-    - Physics: "Same as" buttons copy a vanilla planet's gravity, pressure, magnetic field, solar power, day
-      length, freezing and lightning.
-    - Resources: "Add the resources of" buttons add the resources a vanilla planet has.
-    - "Making the preview..." shows under the preview while it's being made.
-    - The sidebar's sections have tooltips saying what's in them.
-  Changes:
-    - The window fits smaller screens and bigger UI scales (the preview gets smaller).
-    - Research prerequisites show their names next to their icons; a pack that never spoils says "never";
-      clearer wording for the liquid amount, research units and adding a resource.
----------------------------------------------------------------------------------------------------
-Version: 0.9.1
-Date: 2026-11-12
-  Bugfixes:
-    - The game couldn't start when a planet's research listed the same science pack twice, or the same
-      prerequisite twice; repeats are now merged.
-    - The game couldn't start when research needed research that needed it back; the link closing the loop is
-      left out (and reported).
-    - The game couldn't start when a recipe made by hand (Made in: crafting) used a fluid; such recipes are now
-      made in machines with pipes, and the designer warns about it.
-    - The game couldn't start when a description was longer than 200 characters.
-    - A hand-made start area with a value the game refuses (from a hand-edited code) could stop the game when
-      the planet was first visited; such things are now skipped.
-    - New games, respawns and test play could put you in a lake in the middle of a hand-made start area; they
-      now find dry land.
-    - The designer's Terrain and Resources sections broke for ground tiles or resources from mods that aren't
-      installed; they now show them as "not in this game".
-  Features:
-    - Checks: research paid in something no lab takes.
-    - A starting planet set after a game began now says it only counts for new games.
-    - The Planet Designer scenario has a picture in the scenario list.
----------------------------------------------------------------------------------------------------
-Version: 0.9.0
-Date: 2026-11-12
-  Features:
-    - Example planets: the designer's Examples button loads Emberfall (volcanic, with its own ore, pack and
-      research), Mirewood (a starting planet with its own oil) and Rimeholm (frozen, with a pack that thaws).
-    - A thumbnail.
-  Bugfixes:
-    - Your own planets counted as someone else's (and were turned into remixes) when the author name and the
-      player name differed only in capital letters.
----------------------------------------------------------------------------------------------------
-Version: 0.0.8
-Date: 2026-11-12
-  Features:
-    - Get code opens a Share window: tick other planets to make a planet pack (one code, several planets).
-    - Save share picture: a picture of the planet's preview with a card about it (its look, name, author,
-      description, ground, resources, enemies, gravity, day length, its own pack and ores), saved to
-      script-output/planet-workshop to post with its code.
-    - Remixes: a planet imported from someone else's code can be changed; when it's shared it becomes your
-      remix, with its own id (it won't replace the original), you as the author, and "Based on ... by ...".
-      Copy of someone else's planet does the same.
-    - Credits: a planet's description in game says who made it and who it's based on; /planet-workshop lists it.
-    - Mod checks: codes list the other mods a planet uses. Loading or importing one without them says which
-      mod is missing (things from it are left out), and the designer's Checks warn about it.
----------------------------------------------------------------------------------------------------
-Version: 0.0.7
-Date: 2026-11-12
-  Features:
-    - Start on your own planet: a new "Starting planet" startup setting (type a loaded planet's name). New
-      Freeplay games then start there: the crash site, the first landing, the intro message, the charted start
-      area and respawns are on that planet, its discovery is already researched, and Nauvis is a planet to fly to
-      later. Works with hand-made start areas.
-    - Designer: "Made to be a starting planet" (General) adds checks for what a new game needs (iron, copper,
-      stone, fuel, oil, water, air for burner buildings, no freezing or lightning), and test play gets a
-      "New game" starter kit.
-  Info:
-    - The starting planet is only used in new Freeplay games, and not together with Any Planet Start.
----------------------------------------------------------------------------------------------------
-Version: 0.0.6
-Date: 2026-11-12
-  Features:
-    - Hand-made start areas: a new Start area section. Edit start area opens Factorio's map editor on the
-      planet, with a circle around the landing spot (32 to 96 tiles); paint ground and water, place or clear
-      ores, trees, rocks, plants, fish, cliffs and enemies, then Save or Cancel. An ore brush places the planet's
-      own ores. Only the changes are kept in the code, so it stays small.
-    - A planet with a hand-made start area is the same world in every game (the one in the preview), with the
-      changes on top, so they always fit the land around them.
-    - A check warns about start area things that don't exist in this game.
----------------------------------------------------------------------------------------------------
-Version: 0.0.5
-Date: 2026-11-12
-  Features:
-    - Test play: land on the designer's preview planet as a character and play it, with its own gravity,
-      pressure, solar power and day and night, awake enemies and a landing kit. Options: starter kit, research,
-      free hand-crafting, enemies. "Back to the designer" (or dying) ends it.
-    - Checks: a new designer section listing what could make a planet hard or impossible to play (rocket silos
-      or landing pads that can't be built, buildings that can't be built, no resources, an own ore that never
-      generates, pentapods without swamp, no water, recipes that make nothing or need fluids in the wrong
-      machine, missing things, research that needs itself, an unused pack...), each with a "Go there" button.
-      The bottom of the window sums them up, and Get code mentions any warnings.
-    - The preview runs the starting-resources safety net, as the real planet does.
-    - A planet that is already loaded shows its real ores in the preview and test play.
-  Changes:
-    - The Planet Designer scenario comes with its own small map, so starting it no longer shows the map generator.
-  Bugfixes:
-    - Importing a hand-written code that left parts out could break the designer window.
----------------------------------------------------------------------------------------------------
-Version: 0.0.4
-Date: 2026-11-12
-  Features:
-    - Designer production sections: the planet's own ores and fluid wells (with their look and colour), its
-      science pack (ingredients, machine, time, made only here, spoiling), its recipes, and its research (the
-      discovery's needs and cost, and its own technologies with prerequisites, cost, infinite levels and rewards).
-    - Ingredients, results and costs can be things from the game or the planet's own ore, fluid or pack.
-    - Planets can have their own fluid resources (a tinted well or vent giving the planet's own fluid).
-    - Science packs can spoil, like Gleba's.
-    - The preview shows a planet's own ores and wells in their base look.
-  Changes:
-    - The designer's sections are a sidebar in three groups (World, Planet, Production).
----------------------------------------------------------------------------------------------------
-Version: 0.0.3
-Date: 2026-11-12
-  Features:
-    - The Planet Designer scenario (New game > Scenarios): design planets in a window with tabs for the name,
-      terrain, plants and rocks, resources, enemies, physics, space route and looks, beside a live preview you can
-      zoom, reseed and fly over. Several planets per save; New, Copy and Delete.
-    - Get code makes the planet's code (selected, ready to copy, and saved to script-output/planet-workshop);
-      Import code loads planet codes to look at or change.
-  Changes:
-    - Every planet now generates from one shared terrain kit whose numbers live in the planet's map settings, so
-      the designer's preview uses exactly the rules the finished planet gets.
-    - Ground tiles mix closer to their shares (3:1 now gives about 74%, was 84-89%).
----------------------------------------------------------------------------------------------------
-Version: 0.0.2
-Date: 2026-11-12
-  Features:
-    - Terrain: land shapes (lakes, big lakes, island, archipelago, continents), a liquid (water, lava, oil,
-      ammonia, slime or none) with an amount, and any mix of natural ground tiles from any planet, each with a share.
-    - Cliffs, plants and rocks in vanilla styles with an amount; decorations from the ground's home planets.
-    - Enemies: biters, pentapods (they nest in the swamps) or demolishers, with an amount and matching pollution.
-    - Physics: freezing (buildings need heat) and lightning storms.
-    - Look: the planet's picture is chosen automatically (the planet most of the ground comes from, otherwise the
-      closest colour), and the sky (lighting and ambient sound) separately.
-    - Every starting resource gets a patch near the landing spot (each planet has its own patch set), with a
-      safety net that adds a small patch if a seed buries one.
----------------------------------------------------------------------------------------------------
-Version: 0.0.1
-Date: 2026-11-12
-  Features:
-    - Proof of concept: planet codes pasted into the "Planet codes" startup setting become real Space Age planets,
-      each with its own space route, discovery technology, ores, science pack, recipes and technologies.
-    - Broken or partly broken codes never stop the game from loading; problems are listed in chat and with
-      /planet-workshop.
+    - First release.
+    - The Planet Designer scenario (New game > Scenarios): design Space Age planets in a window with a live preview
+      that's generated by exactly the rules the finished planet uses. A "How it works" guide walks through it.
+    - World: land shape, liquid (water, lava, oil, ammonia, slime), up to 12 ground tiles from any planet, cliffs,
+      plants, rocks, decorations, resources (frequency, size, richness, near the start) and enemies (biters,
+      pentapods or demolishers).
+    - Planet: gravity, air pressure, magnetic field, solar power, day length, freezing, lightning storms, the space
+      route and its asteroids, its place on the star map, and its look (picked from the ground's colour by default).
+      "Same as" buttons copy a vanilla planet's physics, and its resources in one click.
+    - Production: the planet's own ores and fluid wells, its own science pack, its own recipes, and its own research
+      (the discovery technology, and new technologies with rewards).
+    - Hand-made start areas: shape the land around the landing spot in Factorio's own map editor.
+    - Checks: what could make a planet hard or impossible to play, each with a button to the section that fixes it.
+    - Test play: land on your planet as a character, with its own gravity, pressure, solar power, day and night,
+      and enemies.
+    - Planet codes: Get code makes a code (like a blueprint string); paste codes into the "Planet codes" startup
+      setting to add the planets to any Space Age game.
+    - Starting planet: start new Freeplay games on one of your planets instead of Nauvis.
+    - Sharing: planet packs (several planets in one code), a share picture with a card about the planet, imports of
+      anyone's codes, remixes that credit the original author, and codes that say which other mods they need.
+    - Three example planets to play or remix: Emberfall, Mirewood and Rimeholm.

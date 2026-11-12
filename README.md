@@ -3,7 +3,7 @@
 A Factorio 2.1 + Space Age mod: design your own planets in an in-game Planet Designer, then add them to any Space
 Age save and share them with other players as **planet codes** (like blueprint strings).
 
-**Status: 0.9.1, the test build** (all seven build steps done; playtesting before the first public release).
+**Status: 1.0.0, the first release** (ready for the mod portal).
 What players see is in [docs/portal-description.md](docs/portal-description.md), the mod portal page, with
 pictures in [docs/gallery](docs/gallery). Example planets are in [examples/](examples) (JSON; the mod carries them
 as one code in `script/examples.lua`, made with `tools/make_code.py examples/*.json --lua ...`).

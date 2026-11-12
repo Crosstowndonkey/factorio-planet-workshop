@@ -1,9 +1,9 @@
 Design your own Space Age planets in an in-game **Planet Designer**, with no modding needed. Then play them in any Space Age game, start a new game on one, or share them with other players as **planet codes** (like blueprint strings).
 
 ## The Planet Designer
-Start **New game > Scenarios > Planet Designer (Planet Workshop)**. A window with a live preview of your planet, built by exactly the same rules the finished planet uses:
+Start **New game > Scenarios > Planet Designer (Planet Workshop)**. A short "How it works" guide opens first. Then you get a window with a live preview of your planet, made by exactly the same rules the finished planet uses:
 - **World:** land shape, liquid (water, lava, oil, ammonia, slime), up to 12 ground tiles from any planet mixed by share, cliffs, plants, rocks, decorations, resources (with frequency, size, richness and "near the start"), and enemies (biters, pentapods or demolishers).
-- **Planet:** gravity, air pressure, magnetic field, solar power, day length, freezing, lightning storms, the space route and its asteroids, its place on the star map, and its look. By default the picture in space matches the colour of its ground.
+- **Planet:** gravity, air pressure, magnetic field, solar power, day length, freezing, lightning storms, the space route and its asteroids, its place on the star map, and its look. By default the picture in space matches the colour of its ground. "Same as" buttons copy a vanilla planet's physics, or add its resources, in one click.
 - **Production:** the planet's **own ores and fluid wells**, its **own science pack** (ingredients, machine, time, made only there, spoiling), its **own recipes**, and its **own research**: the discovery technology and new technologies with prerequisites, costs and rewards.
 - **Start area:** shape the land around the landing spot in Factorio's own **map editor**. Paint ground and water; place ores, trees, rocks, cliffs and nests. The planet is then the same world every game, with your changes on top.
 - **Checks:** what could make the planet unplayable (no air for a rocket silo, an ore that never generates, pentapods without swamp, research that needs itself...), each with a button to the section that fixes it.
