@@ -1,4 +1,21 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.2
+Date: 2026-11-12
+  Features:
+    - How it works: a guide to the whole process (design, check, get the code, save, add it in the main menu,
+      play) opens the first time the designer starts, and from the new ? button.
+    - The Get code window lists the steps to play a planet, including saving the designer game first and that
+      codes are added from the main menu.
+    - Physics: "Same as" buttons copy a vanilla planet's gravity, pressure, magnetic field, solar power, day
+      length, freezing and lightning.
+    - Resources: "Add the resources of" buttons add the resources a vanilla planet has.
+    - "Making the preview..." shows under the preview while it's being made.
+    - The sidebar's sections have tooltips saying what's in them.
+  Changes:
+    - The window fits smaller screens and bigger UI scales (the preview gets smaller).
+    - Research prerequisites show their names next to their icons; a pack that never spoils says "never";
+      clearer wording for the liquid amount, research units and adding a resource.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.1
 Date: 2026-11-12
   Bugfixes:

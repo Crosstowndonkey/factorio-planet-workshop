@@ -90,8 +90,14 @@ function M.number_slider(parent, caption, path, value, min, max, step, unit, too
   local slider = flow.add{type = "slider", minimum_value = min, maximum_value = max, value_step = step,
     value = math.max(min, math.min(max, value)), tags = {pw = "number", path = path, unit = unit}}
   slider.style.width = 200
-  flow.add{type = "label", name = "pw_value", caption = {"planet-workshop-designer.unit-" .. unit, tostring(value)}}
+  flow.add{type = "label", name = "pw_value", caption = M.unit_caption(unit, value)}
   return flow
+end
+
+--- A slider's value with its unit ("7 min"); a spoil time of 0 is "never".
+function M.unit_caption(unit, value)
+  if unit == "spoil" and (value or 0) <= 0 then return {"planet-workshop-designer.unit-spoil-never"} end
+  return {"planet-workshop-designer.unit-" .. unit, tostring(value)}
 end
 
 function M.checkbox(parent, caption, path, value, tooltip)
@@ -201,6 +207,11 @@ function M.ref_picker(parent, path, value, kind, design, self_key)
         tags = {pw = "ref-elem", path = path, kind = kind}}
     end
     if button then button.style.size = 32 end
+    -- technology icons alone are hard to tell apart: their names too
+    if (kind == "tech" or kind == "gametech") and prototypes.technology[value] then
+      local label = flow.add{type = "label", caption = prototypes.technology[value].localised_name}
+      label.style.maximal_width = 260
+    end
   end
   return flow
 end

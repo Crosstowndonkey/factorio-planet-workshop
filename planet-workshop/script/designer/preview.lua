@@ -150,6 +150,13 @@ function M.generate_due()
   return finished
 end
 
+--- True while a player's preview is being made (changed, regenerating, or its start area not settled yet).
+function M.pending(player_index)
+  local d = storage.designer
+  return (d.due and d.due[player_index] ~= nil) or (d.generate and d.generate[player_index] ~= nil) or
+    (d.settling and d.settling[player_index] == true) or false
+end
+
 --- Asks for a new preview soon (changes come in bursts while a slider is dragged).
 function M.schedule(player_index, delay)
   storage.designer.due[player_index] = game.tick + (delay or 30)

@@ -46,6 +46,8 @@ script.on_event(defines.events.on_player_respawned, function(event)
   designer.on_player_respawned(event)
 end)
 script.on_event(defines.events.on_player_selected_area, designer.on_player_selected_area)
+script.on_event({defines.events.on_player_display_resolution_changed, defines.events.on_player_display_scale_changed},
+  designer.on_display_changed)
 script.on_event(defines.events.on_player_alt_selected_area, designer.on_player_alt_selected_area)
 script.on_event(defines.events.on_gui_click, designer.on_gui_click)
 script.on_event(defines.events.on_gui_value_changed, designer.on_gui_value_changed)

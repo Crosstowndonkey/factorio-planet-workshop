@@ -36,9 +36,13 @@ function M.setup_player(player)
   view.show_quickbar = false
   view.show_shortcut_bar = false
   player.game_view_settings = view
-  state.current(player)
+  local _, ps = state.current(player)
   preview.refresh(player)
   gui.build(player)
+  if not ps.help_seen then -- the first time: how it all works
+    ps.help_seen = true
+    gui.show_help(player)
+  end
 end
 
 function M.start()
@@ -222,6 +226,54 @@ ACTIONS["add-technology"] = function(player)
 end
 
 ACTIONS["get-code"] = function(player) gui.show_code(player) end
+ACTIONS.help = function(player) gui.show_help(player) end
+
+--- "Same as <planet>": that planet's gravity, pressure, magnetic field, solar power, day length (and freezing,
+--- lightning).
+ACTIONS["physics-preset"] = function(player, _, tags)
+  local planet = prototypes.space_location[tags.planet]
+  if not planet then return end
+  local props = planet.surface_properties or {}
+  local function value(name)
+    if props[name] then return props[name] end
+    local proto = prototypes.surface_property[name]
+    return proto and proto.default_value or 0
+  end
+  local design = state.current(player)
+  local ph = design.physics
+  ph.gravity = math.floor(value("gravity") * 10 + 0.5) / 10
+  ph.pressure = math.floor(value("pressure") + 0.5)
+  ph.magnetic_field = math.floor(value("magnetic-field") + 0.5)
+  ph.solar_power = math.floor(value("solar-power") + 0.5)
+  ph.day_length = math.max(1, math.floor(value("day-night-cycle") / 3600 * 2 + 0.5) / 2)
+  ph.freezing = planet.entities_require_heating == true
+  ph.lightning = tags.planet == "fulgora"
+  gui.build(player)
+end
+
+--- "Add the resources of <planet>": the resources that planet generates (those not added yet).
+ACTIONS["resource-preset"] = function(player, _, tags)
+  local planet = prototypes.space_location[tags.planet]
+  local mgs = planet and planet.map_gen_settings
+  if not mgs then return end
+  local design = state.current(player)
+  local have = {}
+  for _, res in ipairs(design.resources) do have[res.resource] = true end
+  local names = {}
+  local settings = mgs.autoplace_settings and mgs.autoplace_settings.entity and mgs.autoplace_settings.entity.settings or {}
+  for name in pairs(settings) do names[#names + 1] = name end
+  for name in pairs(mgs.autoplace_controls or {}) do names[#names + 1] = name end
+  table.sort(names)
+  for _, name in ipairs(names) do
+    local e = prototypes.entity[name]
+    if e and e.type == "resource" and e.autoplace_specification and not have[name] then
+      have[name] = true
+      table.insert(design.resources, {resource = name, frequency = 1, size = 1, richness = 1})
+    end
+  end
+  preview.schedule(player.index, 1)
+  gui.build(player)
+end
 ACTIONS["share-picture"] = function(player)
   local file, why = share.picture(player)
   player.print(file and {"planet-workshop-designer.picture-saved", file} or why)
@@ -354,7 +406,7 @@ function M.on_gui_value_changed(event)
     caption = string.format("%d%%", math.floor(value * 100 + 0.5))
   elseif tags.pw == "number" then
     value = math.floor(value * 10 + 0.5) / 10
-    caption = {"planet-workshop-designer.unit-" .. tags.unit, tostring(value)}
+    caption = W.unit_caption(tags.unit, value)
   elseif tags.pw == "tint" then
     local design = state.current(player)
     local tint = spec.color(state.get(design, tags.path)) or {r = 1, g = 1, b = 1}
@@ -526,6 +578,14 @@ end
 
 function M.on_player_respawned(event)
   if state.active() then testplay.on_player_respawned(event) end
+end
+
+--- A new screen size or UI scale: the window resizes to fit.
+function M.on_display_changed(event)
+  if not state.active() then return end
+  local player = game.get_player(event.player_index)
+  local ps = state.player(event.player_index)
+  if player and player.gui.screen[gui.ROOT] and not ps.testing and not ps.editing then gui.build(player) end
 end
 
 function M.on_player_created(event)

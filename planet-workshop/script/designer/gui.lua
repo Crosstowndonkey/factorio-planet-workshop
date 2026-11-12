@@ -18,7 +18,21 @@ local production = require("__planet-workshop__.script.designer.production")
 local M = {}
 
 local ROOT, CODE, IMPORT, MINI = "pw_designer", "pw_designer_code", "pw_designer_import", "pw_designer_mini"
+local HELP = "pw_designer_help"
 local LEFT_WIDTH, VIEW, SIDEBAR = W.LEFT_WIDTH, 540, 150
+
+--- The window's sizes for a player's screen (and UI scale): the preview shrinks first, then the section column,
+--- so the window fits on small screens and at big UI scales.
+local function use_size(player)
+  local res, scale = player.display_resolution, math.max(0.5, player.display_scale or 1)
+  local w, h = res.width / scale, res.height / scale
+  LEFT_WIDTH = w >= 1250 and 600 or 520
+  VIEW = math.floor(math.max(260, math.min(540, h - 300, w - SIDEBAR - LEFT_WIDTH - 90)))
+  W.LEFT_WIDTH = LEFT_WIDTH
+end
+
+--- Vanilla planets for the "same as" presets.
+local PRESET_PLANETS = {"nauvis", "vulcanus", "gleba", "fulgora", "aquilo"}
 
 local SHAPES = {"lakes", "big-lakes", "island", "archipelago", "continents"}
 local LIQUIDS = {"water", "lava", "oil", "ammonia", "slime", "none"}
@@ -48,6 +62,18 @@ local L, index_of, row, heading, hint = W.L, W.index_of, W.row, W.heading, W.hin
 local dropdown, amount_slider, number_slider, checkbox = W.dropdown, W.amount_slider, W.number_slider, W.checkbox
 
 -- The world and planet sections ----------------------------------------------------------------------------------------------------
+
+--- A row of "same as <planet>" buttons (planets that exist in this game).
+local function preset_row(c, caption, kind)
+  local f = row(c, caption)
+  for _, name in ipairs(PRESET_PLANETS) do
+    if prototypes.space_location[name] then
+      f.add{type = "button", caption = {"space-location-name." .. name}, style = "mini_button_aligned_to_text_vertically",
+        tags = {pw = kind, planet = name}}.style.minimal_width = 70
+    end
+  end
+  return f
+end
 
 local function tab_general(c, d, ps, player)
   -- someone else's planet, and who it's based on
@@ -167,9 +193,10 @@ local function tab_resources(c, d)
   end
   local f = c.add{type = "flow", direction = "horizontal"}
   f.style.vertical_align = "center"
-  f.add{type = "label", caption = L("add-resource")}
+  f.add{type = "label", caption = L("add-resource"), tooltip = L("add-resource-tooltip")}
   f.add{type = "choose-elem-button", elem_type = "entity", elem_filters = {{filter = "type", type = "resource"}},
-    tags = {pw = "add-resource"}}
+    tooltip = L("add-resource-tooltip"), tags = {pw = "add-resource"}}
+  preset_row(c, L("resource-preset"), "resource-preset")
 end
 
 local function tab_enemies(c, d)
@@ -203,6 +230,7 @@ end
 
 local function tab_physics(c, d)
   local ph = d.physics
+  preset_row(c, L("physics-preset"), "physics-preset")
   number_slider(c, L("gravity"), "physics.gravity", ph.gravity, 1, 100, 1, "gravity", L("gravity-tooltip"))
   number_slider(c, L("pressure"), "physics.pressure", ph.pressure, 0, 6000, 50, "pressure", L("pressure-tooltip"))
   number_slider(c, L("magnetic-field"), "physics.magnetic_field", ph.magnetic_field, 0, 200, 1, "magnetic",
@@ -328,13 +356,14 @@ local BUILDERS = {general = tab_general, terrain = tab_terrain, nature = tab_nat
 -- The window ----------------------------------------------------------------------------------------------------
 
 function M.destroy(player)
-  for _, name in ipairs{ROOT, CODE, IMPORT} do
+  for _, name in ipairs{ROOT, CODE, IMPORT, HELP} do
     if player.gui.screen[name] then player.gui.screen[name].destroy() end
   end
 end
 
 function M.build(player)
   local design, ps = state.current(player)
+  use_size(player)
   local location = player.gui.screen[ROOT] and player.gui.screen[ROOT].location
   if location and location.x == 0 and location.y == 0 then location = nil end -- never placed: centre it
   if player.gui.screen[ROOT] then player.gui.screen[ROOT].destroy() end
@@ -354,6 +383,8 @@ function M.build(player)
   local drag = bar.add{type = "empty-widget", style = "draggable_space_header", ignored_by_interaction = true}
   drag.style.horizontally_stretchable = true
   drag.style.height = 24
+  bar.add{type = "sprite-button", sprite = "utility/questionmark", style = "frame_action_button", tooltip = L("help-tooltip"),
+    tags = {pw = "help"}}
   bar.add{type = "sprite-button", sprite = "utility/collapse", style = "frame_action_button", tooltip = L("minimize"),
     tags = {pw = "minimize"}}
 
@@ -383,7 +414,8 @@ function M.build(player)
   for _, g in ipairs(GROUPS) do
     heading(side, L("group-" .. g.name))
     for _, key in ipairs(g.sections) do
-      local button = side.add{type = "button", caption = L("tab-" .. key), tags = {pw = "section", key = key}}
+      local button = side.add{type = "button", caption = L("tab-" .. key), tooltip = L("tab-" .. key .. "-tooltip"),
+        tags = {pw = "section", key = key}}
       button.style.horizontally_stretchable = true
       button.style.height = 28
       button.toggled = key == section
@@ -416,6 +448,9 @@ function M.build(player)
     tags = {pw = "zoom", by = -1}, enabled = ps.zoom > 1}
   controls.add{type = "button", caption = "+", style = "tool_button", tooltip = L("zoom-in"),
     tags = {pw = "zoom", by = 1}, enabled = ps.zoom < #state.ZOOMS}
+  local making = controls.add{type = "label", name = "pw_making", caption = L("preview-making")}
+  making.style.font_color = {1, 0.85, 0.5}
+  making.visible = preview.pending(player.index)
   local locked = design.start and (function() local a, b, c = startarea.count(design.start) return a + b + c > 0 end)()
   controls.add{type = "button", caption = L("new-seed"), tooltip = locked and L("new-seed-locked") or L("new-seed-tooltip"),
     tags = {pw = "reseed"}, enabled = not locked}
@@ -454,6 +489,9 @@ function M.update_status(player)
   local frame = player.gui.screen[ROOT]
   if not (frame and frame.status) then return end
   local design, ps = state.current(player)
+  use_size(player)
+  local controls = frame.body and frame.body.right and frame.body.right.children[2]
+  if controls and controls.pw_making then controls.pw_making.visible = preview.pending(player.index) end
   local status = frame.status
   status.clear()
   local list = checks.run(design, ps)
@@ -504,6 +542,33 @@ function M.show_code(player)
   return code
 end
 
+--- "How it works": the whole process, start to finish (opens the first time, and from the ? button).
+function M.show_help(player)
+  local frame = popup(player, HELP, L("help-title"))
+  local function para(key, style)
+    local label = frame.add{type = "label", caption = L(key), style = style}
+    label.style.single_line = false
+    label.style.maximal_width = 640
+    return label
+  end
+  para("help-intro")
+  for i = 1, 6 do
+    local f = frame.add{type = "flow", direction = "horizontal"}
+    f.style.top_margin = 4
+    local n = f.add{type = "label", caption = tostring(i) .. ".", style = "caption_label"}
+    n.style.width = 22
+    local label = f.add{type = "label", caption = L("help-step-" .. i)}
+    label.style.single_line = false
+    label.style.maximal_width = 610
+  end
+  local tips = para("help-tips-title", "caption_label")
+  tips.style.top_margin = 8
+  para("help-tips")
+  local close = frame.add{type = "button", caption = L("help-close"), style = "confirm_button_without_tooltip",
+    tags = {pw = "close", window = HELP}}
+  close.style.top_margin = 8
+end
+
 function M.show_import(player, message)
   local frame = popup(player, IMPORT, L("import-title"))
   frame.add{type = "label", caption = L("import-hint")}
@@ -516,7 +581,7 @@ function M.show_import(player, message)
   frame.add{type = "button", caption = L("import-do"), style = "confirm_button_without_tooltip", tags = {pw = "import-do"}}
 end
 
-M.ROOT, M.CODE, M.IMPORT = ROOT, CODE, IMPORT
+M.ROOT, M.CODE, M.IMPORT, M.HELP = ROOT, CODE, IMPORT, HELP
 M.SHAPES, M.LIQUIDS, M.STARTING = SHAPES, LIQUIDS, STARTING
 
 return M
