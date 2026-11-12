@@ -8,6 +8,8 @@
 --           uses exactly the map settings the finished planet gets
 --   added   the same codes added to a save that was made without them
 --   codec   codes made in game with helpers.encode_string read back by the mod's own decoder
+--   startarea a hand-made start area made in the map editor (water, ores, own ore brush, taken away, Cancel)
+--   sameworld the preview and a planet surface on the same seed are identical (start areas rely on it)
 --   testplay the designer's checks (warnings for unplayable planets) and test play: landing as a character with
 --           the planet's physics, coming back, dying
 local codes = require("__planet-workshop__.lib.codes")
@@ -464,7 +466,7 @@ local function test_designer()
   check("the preview camera is in the window", root(player) and root(player).body.right.camera ~= nil)
 
   -- every tab builds
-  for tab = 1, 14 do
+  for tab = 1, 15 do
     local ok, err = pcall(R, "designer_tab", player.index, tab)
     check("tab " .. tab .. " builds", ok, err)
   end
@@ -577,7 +579,7 @@ local function test_designer()
     -- Production, through the real controls: a planet with its own ore and fluid, pack, recipe and research
     R("designer_do", player.index, "new")
     R("designer_set", player.index, "name", "Roundtrip")
-    for section = 9, 12 do
+    for _, section in ipairs{"ores", "science", "recipes", "research"} do
       local built, err = pcall(R, "designer_tab", player.index, section)
       check("production section " .. section .. " builds (empty)", built, err)
     end
@@ -650,7 +652,7 @@ local function test_designer()
     local mgs = game.surfaces["pw-preview-" .. player.index].map_gen_settings
     check("the preview shows the own ore as an iron-ore stand-in",
       mgs.autoplace_settings.entity.settings["pw-k-ore-iron-ore-1"] ~= nil)
-    for section = 9, 12 do
+    for _, section in ipairs{"ores", "science", "recipes", "research"} do
       local built, err = pcall(R, "designer_tab", player.index, section)
       check("production section " .. section .. " builds (filled in)", built, err)
     end
@@ -823,6 +825,121 @@ local function test_testplay()
   end
 end
 
+-- startarea: a hand-made start area, made with the map editor ----------------------------------------------------
+
+local function test_startarea()
+  local player = game.players[1]
+  local P = player.index
+  player.admin = true
+  R("start_designer")
+  R("designer_set", P, "name", "Startland")
+  R("designer_set", P, "resources", {{resource = "iron-ore", frequency = 1, size = 1, richness = 1}})
+  R("designer_set", P, "terrain.plants.styles", {"forest"})
+  R("designer_do", P, "add-ore", {kind = "solid"})
+  R("designer_tab", P, "start")
+  local on = find(root(player), function(t) return t.pw == "start-on" end)
+  on.state = true
+  R("designer_event", "on_gui_checked_state_changed", {element = on, player_index = P})
+  local size = find(root(player), function(t) return t.pw == "pick" and t.path == "start.radius" end)
+  size.selected_index = 1 -- 32 tiles
+  R("designer_event", "on_gui_selection_state_changed", {element = size, player_index = P})
+  local d = R("designer_designs")[1]
+  check("a start area is switched on, on the preview's world", d.start and d.start.radius == 32 and
+    d.start.seed == R("designer_player", P).seed, d.start and serpent.line(d.start))
+  local seed_button = find(root(player), function(t) return t.pw == "reseed" end)
+  check("New seed still works with no changes", seed_button and seed_button.enabled)
+  local edit = find(root(player), function(t) return t.pw == "start-edit" end)
+  R("designer_event", "on_gui_click", {element = edit, player_index = P})
+
+  return 10, function()
+    local s = game.surfaces["pw-preview-" .. P]
+    check("the map editor opens on the preview", player.controller_type == defines.controllers.editor and player.surface == s,
+      player.controller_type)
+    check("the editor bar is on screen", player.gui.top.pw_start_bar ~= nil)
+    -- changes, as the editor would make them
+    local water = {}
+    for x = 10, 14 do for y = 10, 14 do water[#water + 1] = {name = "water", position = {x, y}} end end
+    s.set_tiles(water)
+    s.set_tiles({{name = "sand-1", position = {10, 10}}, {name = "water", position = {10, 10}}})
+    for x = -10, -8 do for y = -10, -8 do
+      for _, e in pairs(s.find_entities_filtered{position = {x + 0.5, y + 0.5}, radius = 0.6}) do e.destroy() end
+      s.create_entity{name = "copper-ore", position = {x + 0.5, y + 0.5}, amount = 777}
+    end end
+    s.create_entity{name = "wooden-chest", position = {-3.5, 5.5}, force = "player"}
+    local gone
+    for _, e in pairs(s.find_entities_filtered{area = {{-28, -28}, {28, 28}}, type = {"tree", "resource", "simple-entity"}}) do
+      if e.position.x > 0 and e.position.y < 0 then gone = {name = e.name, x = e.position.x, y = e.position.y}; e.destroy(); break end
+    end
+    info("taken away: " .. serpent.line(gone))
+    -- the ore brush for the planet's own ore
+    R("designer_do", P, "brush")
+    check("the ore brush is in the cursor", player.cursor_stack.valid_for_read and player.cursor_stack.name == "pw-ore-brush")
+    R("designer_event", "on_player_selected_area", {item = "pw-ore-brush", player_index = P, surface = s,
+      area = {left_top = {x = -20, y = 5}, right_bottom = {x = -16, y = 9}}})
+    local stand_in = s.find_entities_filtered{position = {-18.5, 6.5}, radius = 0.5, type = "resource"}[1]
+    check("the brush places the planet's own ore", stand_in ~= nil and stand_in.name:find("pw%-k%-ore") ~= nil,
+      stand_in and stand_in.name)
+    R("designer_do", P, "start-save")
+    check("Save: back to the designer", player.controller_type == defines.controllers.god and root(player) ~= nil and
+      player.gui.top.pw_start_bar == nil)
+    d = R("designer_designs")[1]
+    local st = d.start
+    local tiles = 0
+    for _, run in ipairs(st.tiles) do tiles = tiles + run[3] end
+    check("the water is kept (25 tiles)", tiles == 25 and st.palette[1] == "water", tiles .. " " .. serpent.line(st.palette))
+    local copper, own, chest = 0, 0, 0
+    for _, a in ipairs(st.add) do
+      if a.name == "copper-ore" and a.amount == 777 then copper = copper + 1 end
+      if a.name == "@ore:ore1" then own = own + 1 end
+      if a.name == "wooden-chest" then chest = chest + 1 end
+    end
+    check("the copper is kept with its amount", copper == 9, copper)
+    check("the own ore is kept as the planet's ore", own == 16, own)
+    check("buildings aren't kept", chest == 0)
+    local removed = false
+    for _, r in ipairs(st.remove) do
+      if gone and r.name == gone.name and math.abs(r.x - gone.x) < 0.01 and math.abs(r.y - gone.y) < 0.01 then removed = true end
+    end
+    check("what was taken away is kept", gone == nil or removed)
+    seed_button = find(root(player), function(t) return t.pw == "reseed" end)
+    check("New seed is locked once there are changes", seed_button and not seed_button.enabled)
+    return 5, function()
+      R("designer_settle", P)
+      s = game.surfaces["pw-preview-" .. P]
+      check("the preview shows the changes: water", s.get_tile(12, 12).name == "water")
+      check("the preview shows the changes: copper", s.count_entities_filtered{name = "copper-ore", area = {{-10, -10}, {-7, -7}}} == 9)
+      check("the preview shows the changes: own ore", s.count_entities_filtered{area = {{-20, 5}, {-16, 9}}, type = "resource"} == 16)
+      check("the preview shows the changes: taken away", gone == nil or
+        s.count_entities_filtered{name = gone.name, position = {gone.x, gone.y}, radius = 0.01} == 0)
+      check("the preview shows the changes: no chest", s.count_entities_filtered{name = "wooden-chest"} == 0)
+      local code = R("designer_code", P)
+      local pack = codes.decode_body(code:sub(5))
+      local problems = {}
+      local p = pack and spec.normalize(pack.planets[1], problems)
+      check("the code holds the start area", p and p.start and p.start.seed == d.start.seed and #p.start.add == #st.add and
+        #problems == 0, serpent.line(problems))
+      -- edit again: the changes so far are there; Cancel keeps them as they were
+      R("designer_do", P, "start-edit")
+      return 10, function()
+        s = game.surfaces["pw-preview-" .. P]
+        check("editing again shows the changes so far", player.controller_type == defines.controllers.editor and
+          s.get_tile(12, 12).name == "water")
+        s.set_tiles({{name = "sand-1", position = {12, 12}}})
+        R("designer_do", P, "start-cancel")
+        local again = R("designer_designs")[1].start
+        local t2 = 0
+        for _, run in ipairs(again.tiles) do t2 = t2 + run[3] end
+        check("Cancel throws away the new change", t2 == 25 and player.controller_type == defines.controllers.god)
+        R("designer_do", P, "get-code") -- (for the roundtrip suite)
+        -- smaller: changes outside go
+        R("designer_set", P, "start.radius", 32)
+        R("designer_tab", P, "start")
+        check("the start section builds with changes", root(player) ~= nil)
+      end
+    end
+  end
+end
+
 -- roundtrip: the planet designed in the designer suite, loaded from its code ------------------------------------
 
 local function test_roundtrip()
@@ -855,6 +972,31 @@ local function test_roundtrip()
   local s = game.planets[P].create_surface()
   generate(s, 7)
   check("its ore generates near the landing spot", nearest(s, P .. "-ore-ore1", 224) <= 200)
+
+  -- the hand-made start area made in the startarea suite
+  local start
+  for _, entry in ipairs(report().planets) do
+    if entry.name == "Startland" then start = entry end
+  end
+  check("the planet with a hand-made start loads", start ~= nil and start.start ~= nil)
+  if not (start and start.start) then return end
+  local ss = game.planets[start.planet].create_surface()
+  check("it generates from the start area's seed", ss.map_gen_settings.seed == start.start.seed, ss.map_gen_settings.seed)
+  check("its water is there", ss.get_tile(12, 12).name == "water" and ss.get_tile(10, 14).name == "water")
+  check("its copper is there", ss.count_entities_filtered{name = "copper-ore", area = {{-10, -10}, {-7, -7}}} == 9)
+  local own = ss.count_entities_filtered{name = start.planet .. "-ore-ore1", area = {{-20, 5}, {-16, 9}}}
+  check("its own ore is there (the real one)", own == 16, own)
+  local missing = 0
+  for _, a in ipairs(start.start.add) do
+    local name = a.name:sub(1, 5) == "@ore:" and (start.planet .. "-ore-" .. a.name:sub(6)) or a.name
+    if ss.count_entities_filtered{name = name, position = {a.x, a.y}, radius = 0.01} == 0 then missing = missing + 1 end
+  end
+  check("everything placed is there", missing == 0, missing .. "/" .. #start.start.add)
+  local left = 0
+  for _, r in ipairs(start.start.remove) do
+    if ss.count_entities_filtered{name = r.name, position = {r.x, r.y}, radius = 0.01} > 0 then left = left + 1 end
+  end
+  check("everything taken away is gone", left == 0, left .. "/" .. #start.start.remove)
 end
 
 -- added -----------------------------------------------------------------------------------------------------
@@ -950,6 +1092,52 @@ local SUITES = {
   roundtrip = test_roundtrip,
   codec = test_codec,
   testplay = test_testplay,
+  startarea = test_startarea,
+  -- a planet given the preview's seed generates exactly the preview (what hand-made start areas rely on)
+  sameworld = function()
+    local player = game.players[1]
+    local P = player.index
+    R("start_designer")
+    R("designer_import", P, settings.startup["planet-workshop-planets"].value)
+    for i, d in ipairs(R("designer_designs")) do
+      if d.id == "brim0001" then
+        local dd = find(root(player), function(t) return t.pw == "select-design" end)
+        dd.selected_index = i
+        R("designer_event", "on_gui_selection_state_changed", {element = dd, player_index = P})
+      end
+    end
+    return 5, function()
+      R("designer_settle", P)
+      local a = game.surfaces["pw-preview-" .. P]
+      local S = a.map_gen_settings.seed
+      local mgs = prototypes.space_location["pw-brim0001"].map_gen_settings
+      mgs.seed = S
+      local b = game.create_surface("cmp", mgs)
+      generate(b, 7)
+      local area = {{-200, -200}, {200, 200}}
+      local diff, total = 0, 0
+      for x = -200, 199, 3 do for y = -200, 199, 3 do
+        total = total + 1
+        if a.get_tile(x, y).name ~= b.get_tile(x, y).name then diff = diff + 1 end
+      end end
+      check("same seed: tiles identical (a sample every 3 tiles)", diff == 0, diff .. "/" .. total)
+      local function ents(s)
+        local t = {}
+        for _, e in pairs(s.find_entities_filtered{area = area}) do
+          if e.type ~= "character" then t[e.name .. string.format("@%.2f,%.2f", e.position.x, e.position.y)] = true end
+        end
+        return t
+      end
+      local ea, eb = ents(a), ents(b)
+      local na, nb, miss = 0, 0, 0
+      local sample = {}
+      for k in pairs(ea) do na = na + 1; if not eb[k] then miss = miss + 1; if #sample < 5 then sample[#sample+1] = k end end end
+      for k in pairs(eb) do nb = nb + 1 end
+      check("same seed: entities identical", miss == 0 and na == nb, na .. " vs " .. nb .. " missing " .. miss .. " " .. table.concat(sample, " "))
+      local da, db = #a.find_decoratives_filtered{area = area}, #b.find_decoratives_filtered{area = area}
+      check("decorations identical (count)", da == db, da .. " vs " .. db)
+    end
+  end,
 }
 
 -- A suite runs on tick 1; it may return a number of ticks and a function to finish its checks after that.

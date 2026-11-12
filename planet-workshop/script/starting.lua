@@ -6,6 +6,8 @@
 -- around the landing spot is generated and any starting resource missing within SEARCH tiles gets a small
 -- patch on dry ground nearby. It runs once per surface.
 
+local startarea = require("__planet-workshop__.script.startarea")
+
 local M = {}
 
 M.SEARCH = 200 -- tiles from the landing spot
@@ -98,6 +100,14 @@ function M.ensure(surface, planet_name)
   return M.ensure_list(surface, info and info.starting)
 end
 
+--- A planet's own ore names: "@ore:<key>" -> its resource.
+function M.resolver(planet_id)
+  return function(name)
+    if name:sub(1, 5) == "@ore:" then return "pw-" .. planet_id .. "-ore-" .. name:sub(6) end
+    return name
+  end
+end
+
 function M.on_surface_created(event)
   local surface = game.surfaces[event.surface_index]
   local planet = surface and surface.planet
@@ -105,7 +115,15 @@ function M.on_surface_created(event)
     storage.started = storage.started or {}
     if not storage.started[surface.index] then
       storage.started[surface.index] = true
+      local info = planet_info(planet.name)
+      -- a hand-made start area: the planet is always the world it was made on, with its changes on top
+      if info and info.start then
+        local mgs = surface.map_gen_settings
+        mgs.seed = info.start.seed
+        surface.map_gen_settings = mgs
+      end
       M.ensure(surface, planet.name)
+      if info and info.start then startarea.apply(surface, info.start, M.resolver(info.id)) end
     end
   end
 end

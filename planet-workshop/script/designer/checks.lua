@@ -124,7 +124,7 @@ function M.run(design, ps)
   local out = {}
   local function add(level, section, message) out[#out + 1] = {level = level, section = section, message = message} end
 
-  local p, made, problems = preview.evaluate(design, ps.seed)
+  local p, made, problems = preview.evaluate(design, preview.seed(design, ps))
   for _, problem in ipairs(problems) do add("problem", nil, problem) end
   if not p then return out end
 
@@ -228,6 +228,22 @@ function M.run(design, ps)
     if #t.effects == 0 then add("note", "research", L("no-rewards", t.name)) end
   end
   if p.science and not pack_used then add("note", "research", L("pack-unused", p.science.name)) end
+
+  -- Hand-made start area: things in it that don't exist in this game
+  if p.start then
+    local missing = {}
+    for _, name in ipairs(p.start.palette) do
+      if not prototypes.tile[name] then missing[name] = true end
+    end
+    for _, t in ipairs(p.start.add) do
+      local own = t.name:match("^@ore:(.+)$")
+      if (own and not p.ore_keys[own]) or (not own and not prototypes.entity[t.name]) then missing[t.name] = true end
+    end
+    local names = {}
+    for name in pairs(missing) do names[#names + 1] = name end
+    table.sort(names)
+    for _, name in ipairs(names) do add("warning", "start", L("start-missing", describe(p, name))) end
+  end
 
   -- Research that can never start: technologies that need each other
   local needs = {["@discovery"] = p.discovery.prerequisites}

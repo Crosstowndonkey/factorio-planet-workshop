@@ -124,7 +124,7 @@ function M.start(player)
   local surface = game.surfaces[preview.surface_name(player.index)]
   if not surface then return end
   local opts = M.options(ps)
-  local p, made = preview.evaluate(design, ps.seed)
+  local p, made = preview.evaluate(design, preview.seed(design, ps))
   if not p then return end
 
   -- the whole start area, settled as the real planet's will be

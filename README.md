@@ -3,10 +3,11 @@
 A Factorio 2.1 + Space Age mod: design your own planets in an in-game Planet Designer, then add them to any Space
 Age save and share them with other players as **planet codes** (like blueprint strings).
 
-**Status: step 4 (test play and checks) is done**: in the designer, **Test play** lands you on the preview planet
-as a character (with a starter kit and the planet's own gravity, pressure, solar power and day length), and
-**Checks** lists what could make a planet unplayable (no rocket silo, ores that never generate, pentapods without
-swamp, research loops...) with a button to the section that fixes each. **Earlier: step 3 (production) and step
+**Status: step 5 (hand-made start areas) is done**: the designer's **Start area** section opens Factorio's map
+editor on the planet to shape the land around the landing spot; the planet then always generates from that
+world's seed with the changes on top. **Earlier: step 4 (test play and checks)**: **Test play** lands you on the
+preview planet as a character, and **Checks** lists what could make a planet unplayable.
+**Earlier: step 3 (production) and step
 2 (the Planet Designer).** Start **New game > Scenarios > Planet Designer (Planet
 Workshop)** to design planets with a live preview, then press **Get code**.
 
@@ -66,7 +67,16 @@ blocks; every input's tags say which field it changes), `preview.lua` (a preview
 ores show in the preview as hidden stand-ins of their base look, or as the real ores if the planet is loaded. Each
 finished preview runs the starting-resources safety net, like the real planet's surface. Test play sets the
 planet's surface properties on the preview (`LuaSurface.set_property`) and gives the tester their own force
-(`pw-test-<player>`); freezing and lightning are planet-prototype only, so test play can't show them. The preview camera only draws charted ground, so the preview area is charted after each change.
+(`pw-test-<player>`); freezing and lightning are planet-prototype only, so test play can't show them.
+
+**Hand-made start areas** (`script/startarea.lua`, `script/designer/startedit.lua`): a planet given a seed
+generates tile-for-tile like the preview on that seed (the `sameworld` test checks it), so a start area is stored
+as *changes*: the seed, runs of changed tiles, things placed and things taken away (`start` in the code). Editing
+takes a "before" snapshot of the fresh preview (after the safety net), puts the changes back, and opens the map
+editor (`defines.controllers.editor`, which pauses the game, so it is un-paused); Save diffs the area against the
+snapshot. The real planet sets the seed in `on_surface_created`, generates, runs the safety net, then applies the
+changes. Own ores are written as `@ore:<key>` (the editor can't list hidden stand-ins, so the ore brush, a
+selection tool, places them). The preview camera only draws charted ground, so the preview area is charted after each change.
 
 ## How a planet's world is generated
 
@@ -93,7 +103,7 @@ choices live in `lib/catalog.lua`.
 
 ## Developing
 
-- `tools/run_tests.sh [bridge terrain designer roundtrip testplay scenario codec added]` runs the headless test suites in a throwaway folder (never
+- `tools/run_tests.sh [bridge terrain designer startarea roundtrip sameworld testplay scenario codec added]` runs the headless test suites in a throwaway folder (never
   `~/.factorio`). `KEEP=1` keeps the folder for reading logs.
   - **bridge**: the test planets (including Frostbite, which is full of mistakes) plus a broken code and a
     too-new code, loaded into a new game: prototypes, generated terrain and ore, research, and real assemblers
@@ -104,6 +114,10 @@ choices live in `lib/catalog.lua`.
     that the preview's map settings match the finished planet's.
   - **roundtrip**: the planet the designer suite built with the real controls (own ore and fluid, pack, recipe,
     research) is loaded from its code in a new game and checked.
+  - **startarea**: a start area made through the real buttons and the editor (water, copper, the own-ore brush,
+    a tree taken away, a chest that isn't kept), shown in the preview, in the code, and Cancel; **roundtrip**
+    then loads it and checks the real planet has every change. **sameworld**: preview and planet on one seed
+    are identical.
   - **testplay**: every kind of check on a planet full of mistakes (and none once fixed), a loaded planet's real
     ores in the preview, and test play: the body, kit, force, research, physics, enemies, coming back, the
     options, and dying.

@@ -6,6 +6,7 @@ local mapgen = require("__planet-workshop__.lib.mapgen")
 local lookup = require("__planet-workshop__.script.lookup")
 local state = require("__planet-workshop__.script.designer.state")
 local starting = require("__planet-workshop__.script.starting")
+local startarea = require("__planet-workshop__.script.startarea")
 
 local M = {}
 
@@ -13,6 +14,38 @@ M.RADIUS = starting.GENERATE -- chunks generated around the landing spot (as muc
 
 function M.surface_name(player_index)
   return "pw-preview-" .. player_index
+end
+
+--- The seed a player's preview uses: a hand-made start area's own, or the player's sample seed.
+function M.seed(design, ps)
+  return design.start and design.start.seed or ps.seed
+end
+
+--- Turns "@ore:<key>" into the entity that shows that ore in the preview.
+function M.resolver(design)
+  local L = lookup.for_planet(design)
+  return function(name)
+    if name:sub(1, 5) == "@ore:" then return L.ore_entity(name:sub(6)) end
+    return name
+  end
+end
+
+--- The start area's edge on the preview (only that player sees it): in the game view and in the map view
+--- (which the zoomed-out preview camera shows).
+function M.draw_circle(player, surface, design)
+  local ps = state.player(player.index)
+  for _, id in ipairs(ps.circles or {}) do
+    local old = rendering.get_object_by_id(id)
+    if old then old.destroy() end
+  end
+  ps.circles = {}
+  if design.start then
+    for mode, width in pairs{game = 8, chart = 3} do
+      ps.circles[#ps.circles + 1] = rendering.draw_circle{color = {1, 0.75, 0.2, 0.9}, radius = design.start.radius,
+        width = width, filled = false, target = {0, 0}, surface = surface, draw_on_ground = true, players = {player.index},
+        render_mode = mode}.id
+    end
+  end
 end
 
 --- The planet as the loader would see it, its map settings, and any problems.
@@ -32,8 +65,8 @@ end
 --- Regenerates a player's preview now (not while they're test playing on it). Returns the surface.
 function M.refresh(player)
   local design, ps = state.current(player)
-  if ps.testing then return nil end
-  local p, made, problems = M.evaluate(design, ps.seed)
+  if ps.testing or ps.editing then return nil end
+  local p, made, problems = M.evaluate(design, M.seed(design, ps))
   ps.problems = problems
   if not made then return nil end
   ps.picture, ps.sky = made.picture, made.sky
@@ -48,6 +81,7 @@ function M.refresh(player)
   end
   surface.always_day = true
   surface.peaceful_mode = true -- a sample to look at: its nests shouldn't wake up and expand
+  M.draw_circle(player, surface, design)
   -- clear() only happens at the end of the tick and would drop a request made now, so ask next tick
   storage.designer.generate = storage.designer.generate or {}
   storage.designer.generate[player.index] = game.tick + 1
@@ -70,6 +104,11 @@ function M.settle(player_index)
   local ps = state.player(player_index)
   if not surface or ps.placed then return false end
   ps.placed = starting.ensure_list(surface, ps.starting)
+  -- then the hand-made start area (not while its editor is taking the "before" picture)
+  local design = storage.designer.designs[ps.current]
+  if design and design.start and not ps.base_only then
+    startarea.apply(surface, design.start, M.resolver(design))
+  end
   return true
 end
 

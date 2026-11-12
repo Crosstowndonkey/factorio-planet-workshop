@@ -12,6 +12,8 @@ local W = require("__planet-workshop__.script.designer.widgets")
 local production = require("__planet-workshop__.script.designer.production")
 local checks = require("__planet-workshop__.script.designer.checks")
 local testplay = require("__planet-workshop__.script.designer.testplay")
+local startedit = require("__planet-workshop__.script.designer.startedit")
+local startarea = require("__planet-workshop__.script.startarea")
 
 local M = {}
 
@@ -59,6 +61,7 @@ function M.set(player, path, value, rebuild)
   ps.confirm_delete = nil
   if path == "space.orientation" then value = (value / 360) % 1 end
   state.set(design, path, value)
+  if path == "start.radius" and design.start then startarea.trim(design.start) end -- (changes outside it go)
   if state.affects_map(path) then preview.schedule(player.index, rebuild and 1 or 30) end
   if rebuild then gui.build(player) else gui.update_status(player) end
 end
@@ -129,7 +132,13 @@ function ACTIONS.zoom(player, ps, tags)
 end
 
 function ACTIONS.reseed(player, ps)
+  local design = state.current(player)
+  if design.start then
+    local tiles, added, removed = startarea.count(design.start)
+    if tiles + added + removed > 0 then return end -- (the changes were made on this world)
+  end
   ps.seed = (ps.seed * 48271 + 12345) % 2147483647
+  if design.start then design.start.seed = ps.seed end
   refresh_now(player)
 end
 
@@ -209,6 +218,22 @@ end
 ACTIONS["get-code"] = function(player) gui.show_code(player) end
 ACTIONS["test-start"] = function(player) testplay.request(player) end
 ACTIONS["test-stop"] = function(player) testplay.stop(player) end
+ACTIONS["start-edit"] = function(player) startedit.request(player) end
+ACTIONS["start-save"] = function(player) startedit.finish(player, true) end
+ACTIONS["start-cancel"] = function(player) startedit.finish(player, false) end
+ACTIONS["brush"] = function(player) startedit.give_brush(player) end
+ACTIONS["start-clear"] = function(player, ps)
+  local design = state.current(player)
+  if not design.start then return end
+  if ps.confirm_clear and game.tick - ps.confirm_clear <= 600 then
+    design.start.palette, design.start.tiles, design.start.add, design.start.remove = {}, {}, {}, {}
+    ps.confirm_clear = nil
+    preview.schedule(player.index, 1)
+  else
+    ps.confirm_clear = game.tick
+  end
+  gui.build(player)
+end
 ACTIONS["import-open"] = function(player) gui.show_import(player) end
 
 --- A planet from a code (cleaned by spec.normalize, so every field is there) in the form the designer edits.
@@ -292,6 +317,7 @@ function M.on_gui_click(event)
   if action then
     local ps = state.player(player.index)
     if tags.pw ~= "delete" then ps.confirm_delete = nil end
+    if tags.pw ~= "start-clear" then ps.confirm_clear = nil end
     action(player, ps, tags)
   end
 end
@@ -348,6 +374,8 @@ function M.on_gui_selection_state_changed(event)
     if kind == "unlock-recipe" or kind == "change-recipe-productivity" then effect.recipe = "@pack" end
     if kind == "change-recipe-productivity" then effect.change = 0.1 elseif kind ~= "unlock-recipe" then effect.modifier = 0.1 end
     M.set(player, tags.path, effect, true)
+  elseif tags.pw == "brush-ore" then
+    ps.brush = tags.values[el.selected_index]
   elseif tags.pw == "test-pick" then
     testplay.options(ps)[tags.key] = tags.values[el.selected_index]
   elseif tags.pw == "select-design" then
@@ -376,6 +404,20 @@ function M.on_gui_checked_state_changed(event)
     else
       design.science = nil
     end
+    gui.build(player)
+  elseif tags.pw == "start-on" then
+    local ps = state.player(player.index)
+    if el.state then
+      -- back to the changes made before it was switched off, if any; else a fresh one on the preview's world
+      local old = ps.start_off and ps.start_off[design.id]
+      design.start = old or {seed = ps.seed, radius = 48, palette = {}, tiles = {}, add = {}, remove = {}}
+      if old then ps.start_off[design.id] = nil end
+    else
+      ps.start_off = ps.start_off or {}
+      ps.start_off[design.id] = design.start
+      design.start = nil
+    end
+    preview.schedule(player.index, 1)
     gui.build(player)
   elseif tags.pw == "test-check" then
     testplay.options(state.player(player.index))[tags.key] = el.state
@@ -418,25 +460,37 @@ function M.on_gui_text_changed(event)
   elseif tags.pw == "num" then
     local n = tonumber(el.text)
     if n then M.set(player, tags.path, n * (tags.scale or 1), false) end
+  elseif tags.pw == "brush-amount" then
+    state.player(player.index).brush_amount = tonumber(el.text) or 1000
   end
 end
 
 function M.on_tick()
   if not state.active() then return end
+  local function busy(index) return state.player(index).testing or state.player(index).editing end
   for _, index in ipairs(preview.generate_due()) do -- a preview finished: the checks may have changed
     local player = game.get_player(index)
-    if player and player.valid and not state.player(index).testing then
+    if player and player.valid and not busy(index) then
       if state.player(index).section == "checks" then gui.build(player) else gui.update_status(player) end
     end
   end
   for _, index in ipairs(preview.take_due()) do
     local player = game.get_player(index)
-    if player and player.valid and not state.player(index).testing then
+    if player and player.valid and not busy(index) then
       preview.refresh(player)
       if player.gui.screen[gui.ROOT] and not gui.has_camera(player) then gui.build(player) else gui.update_status(player) end
     end
   end
   testplay.on_tick()
+  startedit.on_tick()
+end
+
+function M.on_player_selected_area(event)
+  if state.active() then startedit.on_selected_area(event, false) end
+end
+
+function M.on_player_alt_selected_area(event)
+  if state.active() then startedit.on_selected_area(event, true) end
 end
 
 function M.on_player_died(event)

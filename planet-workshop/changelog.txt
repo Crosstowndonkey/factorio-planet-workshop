@@ -1,4 +1,15 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.0.6
+Date: 2026-11-12
+  Features:
+    - Hand-made start areas: a new Start area section. Edit start area opens Factorio's map editor on the
+      planet, with a circle around the landing spot (32 to 96 tiles); paint ground and water, place or clear
+      ores, trees, rocks, plants, fish, cliffs and enemies, then Save or Cancel. An ore brush places the planet's
+      own ores. Only the changes are kept in the code, so it stays small.
+    - A planet with a hand-made start area is the same world in every game (the one in the preview), with the
+      changes on top, so they always fit the land around them.
+    - A check warns about start area things that don't exist in this game.
+---------------------------------------------------------------------------------------------------
 Version: 0.0.5
 Date: 2026-11-12
   Features:

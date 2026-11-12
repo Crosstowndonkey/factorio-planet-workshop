@@ -554,7 +554,7 @@ function M.build_all(found, problems)
       report.planets[#report.planets + 1] = {
         id = p.id, name = p.name, author = p.author, planet = b:name(), discovery = b:name("discovery"),
         pack = p.science and b:name("pack") or nil, code = entry.code, picture = b.picture, sky = b.sky,
-        starting = b.starting,
+        starting = b.starting, start = p.start,
       }
     end
   end

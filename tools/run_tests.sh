@@ -1,12 +1,12 @@
 #!/bin/bash
 # Runs the test suites headless in a throwaway folder (never touches ~/.factorio).
-# Usage: tools/run_tests.sh [suite ...]      suites: bridge terrain designer roundtrip testplay scenario codec added (roundtrip needs designer) (default: all)
+# Usage: tools/run_tests.sh [suite ...]      suites: bridge terrain designer startarea roundtrip sameworld testplay scenario codec added (roundtrip needs designer and startarea) (default: all)
 # FACTORIO=/path/to/factorio overrides the game binary. KEEP=1 keeps the throwaway folder (its path is printed).
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FACTORIO="${FACTORIO:-/mnt/GamingSSD/SteamLibrary/steamapps/common/Factorio/bin/x64/factorio}"
 SUITES=("$@")
-[ ${#SUITES[@]} -eq 0 ] && SUITES=(bridge terrain designer roundtrip testplay scenario codec added)
+[ ${#SUITES[@]} -eq 0 ] && SUITES=(bridge terrain designer startarea roundtrip sameworld testplay scenario codec added)
 WORK="$(mktemp -d)"
 if [ -n "$KEEP" ]; then echo "(work folder: $WORK)"; else trap 'rm -rf "$WORK"' EXIT; fi
 mkdir -p "$WORK/mods" "$WORK/write"
@@ -60,7 +60,7 @@ for suite in "${SUITES[@]}"; do
   fi
   if [ "$suite" = roundtrip ]; then
     # load the planet the designer suite made (its Get code saved the code) in a new game
-    code=$(cat "$WORK"/write/script-output/planet-workshop/Roundtrip-*.txt 2>/dev/null | head -1)
+    code=$(cat "$WORK"/write/script-output/planet-workshop/Roundtrip-*.txt "$WORK"/write/script-output/planet-workshop/Startland-*.txt 2>/dev/null | tr '\n' ' ')
     if [ -z "$code" ]; then echo "STA roundtrip: 0 passed, 1 failed (run the designer suite first)"; FAILED=1; continue; fi
     printf -- '-- the code the designer suite made\nreturn "%s"\n' "$code" > "$WORK/mods/pw-codes/codes.lua"
     mod_list true

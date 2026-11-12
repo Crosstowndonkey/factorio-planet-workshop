@@ -108,7 +108,7 @@ end
 --- Paths whose change alters the generated world (others, like gravity or the route, don't need a new preview).
 function M.affects_map(path)
   return path:find("^terrain") or path:find("^resources") or path:find("^enemies") or path:find("^look") or
-    path:find("^ores")
+    path:find("^ores") or path:find("^start")
 end
 
 M.DEFAULT_DISCOVERY = {
@@ -149,6 +149,11 @@ function M.tidy(d)
   for _, r in ipairs(d.recipes) do
     r.ingredients = named(r.ingredients)
     r.results = named(r.results)
+  end
+  if type(d.start) == "table" then
+    for _, k in ipairs{"palette", "tiles", "add", "remove"} do
+      if type(d.start[k]) ~= "table" then d.start[k] = {} end
+    end
   end
   for _, t in ipairs(d.technologies) do
     t.ingredients = named(t.ingredients)

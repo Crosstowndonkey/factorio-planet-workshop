@@ -10,6 +10,7 @@ local state = require("__planet-workshop__.script.designer.state")
 local preview = require("__planet-workshop__.script.designer.preview")
 
 local checks = require("__planet-workshop__.script.designer.checks")
+local startarea = require("__planet-workshop__.script.startarea")
 
 local W = require("__planet-workshop__.script.designer.widgets")
 local production = require("__planet-workshop__.script.designer.production")
@@ -33,7 +34,7 @@ table.sort(ASTEROIDS)
 
 --- The sidebar: sections in groups. (Their order is also the numbering the tests use.)
 local GROUPS = {
-  {name = "world", sections = {"general", "terrain", "nature", "resources", "enemies"}},
+  {name = "world", sections = {"general", "terrain", "nature", "resources", "enemies", "start"}},
   {name = "planet", sections = {"physics", "space", "look"}},
   {name = "production", sections = {"ores", "science", "recipes", "research"}},
   {name = "test", sections = {"checks", "testplay"}},
@@ -162,6 +163,29 @@ local function tab_enemies(c, d)
   hint(c, L("enemies-hint-" .. d.enemies.kind))
 end
 
+local function tab_start(c, d, ps)
+  c.add{type = "checkbox", caption = L("start-on"), state = d.start ~= nil, tags = {pw = "start-on"}}
+  hint(c, L("start-hint"))
+  local st = d.start
+  if not st then return end
+  local captions = {}
+  for i, r in ipairs(startarea.RADII) do captions[i] = L("start-radius-n", r) end
+  dropdown(c, L("start-radius"), "start.radius", startarea.RADII, nil, st.radius, L("start-radius-tooltip"), captions)
+  local tiles, added, removed = startarea.count(st)
+  local f = row(c, L("start-changes"))
+  f.add{type = "label", caption = L("start-counts", tiles, added, removed)}
+  f = c.add{type = "flow", direction = "horizontal"}
+  f.style.top_margin = 6
+  f.add{type = "button", caption = L("start-edit"), tooltip = L("start-edit-tooltip"), style = "confirm_button_without_tooltip",
+    tags = {pw = "start-edit"}}
+  f.add{type = "button", caption = ps.confirm_clear and L("start-clear-confirm") or L("start-clear"), tags = {pw = "start-clear"},
+    style = ps.confirm_clear and "red_button" or "button", enabled = tiles + added + removed > 0}
+  heading(c, L("start-how"))
+  hint(c, L("start-how-1"))
+  hint(c, L("start-how-2"))
+  hint(c, L("start-how-3"))
+end
+
 local function tab_physics(c, d)
   local ph = d.physics
   number_slider(c, L("gravity"), "physics.gravity", ph.gravity, 1, 100, 1, "gravity", L("gravity-tooltip"))
@@ -282,7 +306,7 @@ local function tab_testplay(c, d, ps)
 end
 
 local BUILDERS = {general = tab_general, terrain = tab_terrain, nature = tab_nature, resources = tab_resources,
-  enemies = tab_enemies, physics = tab_physics, space = tab_space, look = tab_look,
+  enemies = tab_enemies, start = tab_start, physics = tab_physics, space = tab_space, look = tab_look,
   ores = production.ores, science = production.science, recipes = production.recipes, research = production.research,
   checks = tab_checks, testplay = tab_testplay}
 
@@ -376,7 +400,9 @@ function M.build(player)
     tags = {pw = "zoom", by = -1}, enabled = ps.zoom > 1}
   controls.add{type = "button", caption = "+", style = "tool_button", tooltip = L("zoom-in"),
     tags = {pw = "zoom", by = 1}, enabled = ps.zoom < #state.ZOOMS}
-  controls.add{type = "button", caption = L("new-seed"), tooltip = L("new-seed-tooltip"), tags = {pw = "reseed"}}
+  local locked = design.start and (function() local a, b, c = startarea.count(design.start) return a + b + c > 0 end)()
+  controls.add{type = "button", caption = L("new-seed"), tooltip = locked and L("new-seed-locked") or L("new-seed-tooltip"),
+    tags = {pw = "reseed"}, enabled = not locked}
   controls.add{type = "button", caption = ps.walking and L("back") or L("walk"), tooltip = L("walk-tooltip"),
     tags = {pw = "walk"}}
   controls.add{type = "button", caption = L("test-play"), tooltip = L("test-play-tooltip"), tags = {pw = "test-start"},

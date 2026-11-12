@@ -36,7 +36,10 @@ M.MODIFIERS = {
 
 M.LIMITS = {
   name = 40, description = 500, author = 40, list = 64, ingredients = 12,
+  palette = 255, tile_runs = 40000, start_things = 20000,
 }
+--- Sizes a hand-made start area can have (tiles from the landing spot).
+M.START_RADII = {32, 48, 64, 96}
 
 -- Helpers ---------------------------------------------------------------------------------------------------
 
@@ -333,6 +336,61 @@ function M.normalize(raw, problems)
       p.technologies[#p.technologies + 1] = tech
       p.tech_keys[k] = tech
     end
+  end
+
+  -- The hand-made start area (see script/startarea.lua): the seed it was made on and the changes to that world.
+  if type(raw.start) == "table" then
+    local st = raw.start
+    local radius = M.START_RADII[1]
+    for _, r in ipairs(M.START_RADII) do
+      if type(st.radius) == "number" and math.abs(st.radius - r) < math.abs(st.radius - radius) then radius = r end
+    end
+    if type(st.radius) ~= "number" then radius = 48 end
+    local start = {seed = math.floor(number(st.seed, 0, 4294967295, 0)), radius = radius, palette = {}, tiles = {},
+      add = {}, remove = {}}
+    local function coord(v) return type(v) == "number" and v == v and math.abs(v) <= radius + 2 end
+    for i, name in ipairs(type(st.palette) == "table" and st.palette or {}) do
+      if i > M.LIMITS.palette then break end
+      start.palette[i] = ref(name) or "?"
+    end
+    for _, run in ipairs(type(st.tiles) == "table" and st.tiles or {}) do
+      if #start.tiles >= M.LIMITS.tile_runs then
+        problem(problems, "bad-entry", "start area tiles")
+        break
+      end
+      if type(run) == "table" and coord(run[1]) and coord(run[2]) and type(run[3]) == "number" and run[3] >= 1 and
+        run[3] <= 2 * radius + 2 and type(run[4]) == "number" and start.palette[run[4]] then
+        start.tiles[#start.tiles + 1] = {math.floor(run[1]), math.floor(run[2]), math.floor(run[3]), math.floor(run[4])}
+      else
+        problem(problems, "bad-entry", "start area tiles")
+      end
+    end
+    local function things(list, out, adding)
+      for _, t in ipairs(type(list) == "table" and list or {}) do
+        if #out >= M.LIMITS.start_things then
+          problem(problems, "bad-entry", "start area")
+          break
+        end
+        if type(t) == "table" and ref(t.name) and coord(t.x) and coord(t.y) then
+          local e = {name = t.name, x = t.x, y = t.y}
+          if adding then
+            e.amount = type(t.amount) == "number" and math.floor(number(t.amount, 1, 4294967295, 1000)) or nil
+            e.dir = type(t.dir) == "number" and math.floor(number(t.dir, 0, 15, 0)) or nil
+            e.orientation = type(t.orientation) == "string" and t.orientation:match("^[a-z%-]+$") and #t.orientation < 40 and
+              t.orientation or nil
+            e.variation = type(t.variation) == "number" and math.floor(number(t.variation, 1, 255, 1)) or nil
+            e.color = type(t.color) == "number" and math.floor(number(t.color, 1, 255, 1)) or nil
+            e.enemy = t.enemy == true or nil
+          end
+          out[#out + 1] = e
+        else
+          problem(problems, "bad-entry", "start area")
+        end
+      end
+    end
+    things(st.add, start.add, true)
+    things(st.remove, start.remove, false)
+    p.start = start
   end
 
   return p
