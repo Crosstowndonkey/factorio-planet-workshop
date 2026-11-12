@@ -704,7 +704,7 @@ local function test_testplay()
   })
   R("designer_set", P, "technologies", {
     {key = "a", name = "Chicken", prerequisites = {"@tech:b"}, count = 10, time = 10, ingredients = {{name = "automation-science-pack", amount = 1}}, effects = {}},
-    {key = "b", name = "Egg", prerequisites = {"@tech:a"}, count = 10, time = 10, ingredients = {{name = "automation-science-pack", amount = 1}}, effects = {}},
+    {key = "b", name = "Egg", prerequisites = {"@tech:a"}, count = 10, time = 10, ingredients = {{name = "iron-plate", amount = 1}}, effects = {}},
   })
   R("designer_set", P, "science", {name = "Odd pack", ingredients = {{name = "@ore:ore1", amount = 1}}, count = 1, time = 5,
     category = "crafting"})
@@ -721,6 +721,7 @@ local function test_testplay()
   check("a reference to an ore that doesn't exist", has_check(list, "missing-ref", "warning"))
   check("research that needs itself", has_check(list, "research-loop", "warning"))
   check("research with no rewards", has_check(list, "no-rewards", "note"))
+  check("research paid in something labs don't take", has_check(list, "not-a-pack", "warning"))
   check("a pack no research uses", has_check(list, "pack-unused", "note"))
   check("problems and warnings come before notes", list[#list].level == "note")
   check("checks point to the section to fix them in", list[1].section ~= nil)
@@ -1134,6 +1135,361 @@ local function test_examples()
   end
 end
 
+-- fuzz: random and broken planets (tools/fuzz_planets.py) ------------------------------------------------------
+
+local function test_fuzz()
+  local r = report()
+  info(#r.planets .. " planets loaded, " .. #r.problems .. " problems reported")
+  check("fuzz: the game started with all the random codes (no crash while loading)", true)
+  check("fuzz: the good ones loaded", #r.planets >= 25, #r.planets)
+  check("fuzz: the broken parts were reported", #r.problems >= 20, #r.problems)
+  -- every planet's surface: generated, safety net, start area
+  local made, failed = 0, 0
+  for _, entry in ipairs(r.planets) do
+    local ok, err = pcall(function()
+      local s = game.planets[entry.planet].create_surface()
+      s.request_to_generate_chunks({0, 0}, 2)
+      s.force_generate_chunk_requests()
+    end)
+    if ok then made = made + 1 else failed = failed + 1; info("surface " .. entry.name .. ": " .. tostring(err)) end
+  end
+  check("fuzz: every planet's surface generates", failed == 0 and made == #r.planets, made .. " made, " .. failed .. " failed")
+
+  -- the designer: import them all, open every section of every planet, run its checks, make its code
+  local player = game.players[1]
+  local P = player.index
+  player.admin = true
+  R("start_designer")
+  local n = R("designer_import", P, settings.startup["planet-workshop-planets"].value)
+  check("fuzz: the designer imports the readable planets", n >= #r.planets, n)
+  local designs = R("designer_designs")
+  local sections, errors = 0, {}
+  for i = 1, #designs do
+    R("designer_player", P) -- (keeps the player state made)
+    local dd = find(root(player), function(t) return t.pw == "select-design" end)
+    dd.selected_index = i
+    local ok, err = pcall(R, "designer_event", "on_gui_selection_state_changed", {element = dd, player_index = P})
+    if not ok then errors[#errors + 1] = designs[i].name .. " select: " .. tostring(err) end
+    for _, section in ipairs{"general", "terrain", "nature", "resources", "enemies", "start", "physics", "space", "look",
+      "ores", "science", "recipes", "research", "checks", "testplay"} do
+      local built, err2 = pcall(R, "designer_tab", P, section)
+      if built then sections = sections + 1 else errors[#errors + 1] = designs[i].name .. " " .. section .. ": " .. tostring(err2) end
+    end
+    local ok3, err3 = pcall(R, "designer_checks", P)
+    if not ok3 then errors[#errors + 1] = designs[i].name .. " checks: " .. tostring(err3) end
+    local ok4, code = pcall(R, "designer_code", P)
+    if ok4 then
+      local pack = codes.decode_body(code:sub(5))
+      local problems = {}
+      if not (pack and spec.normalize(pack.planets[1], problems)) then errors[#errors + 1] = designs[i].name .. ": its code doesn't read back" end
+    else
+      errors[#errors + 1] = designs[i].name .. " code: " .. tostring(code)
+    end
+    local ok5, err5 = pcall(R, "designer_do", P, "get-code")
+    if not ok5 then errors[#errors + 1] = designs[i].name .. " share window: " .. tostring(err5) end
+    R("designer_do", P, "close", {window = "pw_designer_code"})
+  end
+  for k = 1, math.min(#errors, 15) do info("error: " .. errors[k]) end
+  check("fuzz: every section of every planet opens, checks run, codes made", #errors == 0,
+    #errors .. " errors, " .. sections .. " sections built")
+  -- very long texts typed into the designer (its text boxes have no limit; codes cut them)
+  R("designer_do", P, "new")
+  local long = string.rep("Long words ünïcödé ", 40)
+  R("designer_set", P, "name", long)
+  R("designer_set", P, "author", long)
+  R("designer_set", P, "description", long .. long)
+  R("designer_do", P, "add-ore", {kind = "solid"})
+  R("designer_set", P, "ores.1.name", long)
+  R("designer_set", P, "science", {name = long, ingredients = {{name = "@ore:ore1", amount = 1}}, count = 1, time = 1, category = "crafting"})
+  R("designer_do", P, "add-recipe")
+  R("designer_set", P, "recipes.1.name", long)
+  R("designer_do", P, "add-technology")
+  R("designer_set", P, "technologies.1.name", long)
+  R("designer_set", P, "credits", {{name = long, author = long}})
+  local long_errors = {}
+  for _, section in ipairs{"general", "resources", "ores", "science", "recipes", "research", "checks", "testplay"} do
+    local ok, err = pcall(R, "designer_tab", P, section)
+    if not ok then long_errors[#long_errors + 1] = section .. ": " .. tostring(err) end
+  end
+  for _, action in ipairs{"get-code", "share-picture"} do
+    local ok, err = pcall(R, "designer_do", P, action)
+    if not ok then long_errors[#long_errors + 1] = action .. ": " .. tostring(err) end
+  end
+  check("fuzz: very long names and descriptions don't break the designer", #long_errors == 0, table.concat(long_errors, " | "))
+  local long_code = R("designer_code", P)
+  local long_pack = codes.decode_body(long_code:sub(5))
+  local long_problems = {}
+  local long_p = long_pack and spec.normalize(long_pack.planets[1], long_problems)
+  check("fuzz: a code cuts long texts to their limits", long_p and #long_p.name <= 40 and #long_p.description <= 500)
+  -- and a few test plays and start area edits on the odd ones
+  return 5, function()
+    local plays = 0
+    for i = 2, math.min(#designs, 7) do
+      local dd = find(root(player), function(t) return t.pw == "select-design" end)
+      dd.selected_index = i
+      R("designer_event", "on_gui_selection_state_changed", {element = dd, player_index = P})
+      R("designer_preview_now", P)
+      local ok, err = pcall(function()
+        R("designer_settle", P)
+        R("designer_do", P, "test-start")
+        R("designer_do", P, "test-stop")
+      end)
+      if ok then plays = plays + 1 else info("test play " .. designs[i].name .. ": " .. tostring(err)) end
+    end
+    check("fuzz: test play starts and stops on odd planets", plays == math.min(#designs, 7) - 1, plays)
+  end
+end
+
+-- saveload: a designer game saved in the middle of test play, loaded and carried on ----------------------------
+
+--- (the save is tests/fixtures/designer-0.9.0-test-play.zip: made in a real game, since tests can't save -
+--- the designer with the examples and a planet "Saved" with a start area, saved while test playing it)
+local function test_save2()
+  local player = game.players[1]
+  local P = player.index
+  local designs = R("designer_designs")
+  local saved
+  for _, d in ipairs(designs) do if d.name == "Saved" then saved = d end end
+  check("load: the designs came back", #designs == 5 and saved ~= nil and saved.start and saved.start.radius == 32, #designs)
+  check("load: still test playing on the planet", player.controller_type == defines.controllers.character and
+    player.surface.name == "pw-preview-" .. P and player.gui.top.pw_test_bar ~= nil, player.controller_type)
+  R("designer_do", P, "test-stop")
+  check("load: test play ends", player.controller_type == defines.controllers.god and root(player) ~= nil)
+  local ok, err = true, nil
+  for _, section in ipairs{"general", "terrain", "start", "ores", "checks", "testplay"} do
+    local built, e = pcall(R, "designer_tab", P, section)
+    if not built then ok, err = false, section .. ": " .. tostring(e) end
+  end
+  check("load: the window works", ok, err)
+  local pack = codes.decode_body(R("designer_code", P):sub(5))
+  check("load: its code reads back", pack and pack.planets[1].name == "Saved")
+  return 300, function()
+    local s = game.surfaces["pw-preview-" .. P]
+    check("load: a fresh preview, with the start area's water", s and s.get_tile(7, 5).name == "water", s and s.get_tile(7, 5).name)
+    R("designer_do", P, "start-edit")
+    return 10, function()
+      check("load: the start area opens in the editor", player.controller_type == defines.controllers.editor)
+      R("designer_do", P, "start-cancel")
+      check("load: and closes", player.controller_type == defines.controllers.god)
+      R("designer_do", P, "test-start")
+      return 10, function()
+        check("load: test play starts again", player.controller_type == defines.controllers.character)
+        R("designer_do", P, "test-stop")
+      end
+    end
+  end
+end
+
+-- existing: a save with Brimstone in use, loaded with its code removed / changed / a starting planet set later -----
+
+local function existing_common(phase)
+  local player = game.players[1]
+  check(phase .. ": the save loads", player ~= nil)
+  check(phase .. ": Nauvis is fine", game.surfaces.nauvis ~= nil and player.surface.name == "nauvis", player.surface.name)
+  local ok, err = pcall(function()
+    for _ = 1, 3 do game.forces.player.chart(game.surfaces.nauvis, {{-32, -32}, {32, 32}}) end
+  end)
+  check(phase .. ": the game runs", ok, err)
+end
+
+local function test_existing_removed()
+  existing_common("removed")
+  check("removed: no planets loaded", #report().planets == 0)
+  check("removed: Brimstone is gone from the star map", game.planets["pw-brim0001"] == nil)
+  info("Brimstone's surface after removal: " .. tostring(game.surfaces["pw-brim0001"] and "kept" or "removed"))
+  return 120, function() check("removed: the game keeps running", game.tick > 0) end
+end
+
+local function test_existing_changed()
+  existing_common("changed")
+  check("changed: Brimstone still loaded", game.planets["pw-brim0001"] ~= nil)
+  local s = game.surfaces["pw-brim0001"]
+  check("changed: its surface and buildings are still there", s ~= nil and s.count_entities_filtered{name = "steel-chest"} == 1)
+  check("changed: its old ore and pack are gone", prototypes.item["pw-brim0001-ore-sulfite"] == nil and
+    prototypes.item["pw-brim0001-pack"] == nil)
+  local new = s.create_entity{name = "stone-furnace", position = {20, 20}, force = "player"}
+  check("changed: new building there works", new ~= nil)
+  return 120, function() check("changed: the game keeps running", game.tick > 0) end
+end
+
+local function test_existing_start()
+  existing_common("start")
+  local state, noted = remote.call("planet-workshop", "start_planet_state")
+  check("start: a starting planet set later doesn't move anyone", game.players[1].surface.name == "nauvis")
+  check("start: the player is told it's only for new games", noted == "pw-brim0001", serpent.line({state, noted}))
+end
+
+-- homestead: a new game on a starting planet with the biggest hand-made start area ---------------------------------
+
+local function test_homestead()
+  local H = "pw-homestead1"
+  local player = game.players[1]
+  local s = game.surfaces[H]
+  check("homestead: the player starts there", player.surface.name == H, player.surface.name)
+  check("homestead: the planet is the start area's world", s.map_gen_settings.seed == 424242, s.map_gen_settings.seed)
+  check("homestead: the lake on the landing spot", s.get_tile(0, 0).name == "deepwater" and s.get_tile(8, 0).name == "water")
+  check("homestead: the ring road", s.get_tile(41, 0).name == "concrete")
+  check("homestead: the hand-placed ore fields", s.count_entities_filtered{name = "iron-ore", area = {{17, -8}, {33, 8}}} >= 225 and
+    s.count_entities_filtered{name = "stone", area = {{-8, -33}, {8, -17}}} >= 225)
+  check("homestead: the hand-placed oil well", s.count_entities_filtered{name = "crude-oil", position = {-50.5, 50.5}, radius = 0.1} == 1)
+  local here = s.get_tile(player.position.x, player.position.y)
+  check("homestead: the player isn't standing in the lake", not here.prototype.fluid, here.name)
+  local ship = s.find_entities_filtered{name = "crash-site-spaceship"}[1]
+  check("homestead: the crash site is there", ship ~= nil)
+  if ship then
+    local under = s.get_tile(ship.position.x, ship.position.y)
+    check("homestead: the crash site isn't in the lake", not under.prototype.fluid, under.name .. " " .. serpent.line(ship.position))
+  end
+  if player.character then player.character.die() end
+  return 1200, function()
+    local at = player.surface.get_tile(player.position.x, player.position.y)
+    check("homestead: respawn there, on dry land", player.surface.name == H and player.character ~= nil and not at.prototype.fluid,
+      player.surface.name .. " " .. at.name)
+  end
+end
+
+-- monkey: thousands of random clicks, picks, slides, ticks and typing in the designer window -----------------------
+
+local MONKEY_SKIP = {["test-start"] = true, ["start-edit"] = true, walk = true, minimize = true, restore = true,
+  ["test-stop"] = true, ["start-save"] = true, ["start-cancel"] = true, brush = true}
+
+local function all_inputs(el, out)
+  if el.tags and el.tags.pw and not MONKEY_SKIP[el.tags.pw] and el.enabled ~= false then out[#out + 1] = el end
+  for _, child in ipairs(el.children) do all_inputs(child, out) end
+  return out
+end
+
+local MONKEY_TEXT = {"", "0", "-5", "3.5", "1e9", "abc", "  ", "Name with ünïcödé", string.rep("x", 300), "12", "."}
+local MONKEY_ELEMS = {
+  item = {"iron-plate", "automation-science-pack", "space-science-pack", "wood", "ice"},
+  entity = {"iron-ore", "coal", "crude-oil", "tungsten-ore", "scrap", "fluorine-vent"},
+  tile = {"grass-1", "sand-2", "volcanic-ash-dark", "snow-flat", "midland-turquoise-bark"},
+  technology = {"automation", "oil-processing", "rocket-silo"},
+  recipe = {"iron-gear-wheel", "plastic-bar", "electronic-circuit"},
+}
+
+local function test_monkey()
+  local player = game.players[1]
+  local P = player.index
+  player.admin = true
+  R("start_designer")
+  R("designer_do", P, "examples")
+  local rng = game.create_random_generator(tonumber(script.test_arg:match("%d+") or "") or 12345)
+  local errors, actions, rounds = {}, 0, 0
+  local kinds = {}
+  local function act()
+    local window = root(player)
+    if not window then
+      R("designer_do", P, "restore")
+      window = root(player)
+      if not window then return end
+    end
+    -- sometimes jump to a section or another planet first
+    if rng(1, 8) == 1 then
+      local sections = {"general", "terrain", "nature", "resources", "enemies", "start", "physics", "space", "look", "ores",
+        "science", "recipes", "research", "checks", "testplay"}
+      R("designer_tab", P, sections[rng(1, #sections)])
+      window = root(player)
+    end
+    local inputs = all_inputs(window, {})
+    for _, name in ipairs{"pw_designer_code", "pw_designer_import"} do
+      if player.gui.screen[name] then all_inputs(player.gui.screen[name], inputs) end
+    end
+    if #inputs == 0 then return end
+    -- each kind of control as often as the others (there are far more checkboxes and buttons than sliders)
+    local by_type, types = {}, {}
+    for _, input in ipairs(inputs) do
+      if not by_type[input.type] then by_type[input.type] = {}; types[#types + 1] = input.type end
+      table.insert(by_type[input.type], input)
+    end
+    local pool = by_type[types[rng(1, #types)]]
+    local el = pool[rng(1, #pool)]
+    local event = {element = el, player_index = P}
+    local handler
+    if el.type == "button" or el.type == "sprite-button" then
+      handler = "on_gui_click"
+    elseif el.type == "drop-down" then
+      if #el.items == 0 then return end
+      el.selected_index = rng(1, #el.items)
+      handler = "on_gui_selection_state_changed"
+    elseif el.type == "slider" then
+      el.slider_value = el.get_slider_minimum() + rng() * (el.get_slider_maximum() - el.get_slider_minimum())
+      handler = "on_gui_value_changed"
+    elseif el.type == "checkbox" then
+      el.state = not el.state
+      handler = "on_gui_checked_state_changed"
+    elseif el.type == "textfield" or el.type == "text-box" then
+      local text = MONKEY_TEXT[rng(1, #MONKEY_TEXT)]
+      if el.type == "textfield" and el.numeric then text = tostring(rng(0, 500)) end
+      el.text = text
+      handler = "on_gui_text_changed"
+    elseif el.type == "choose-elem-button" then
+      local pool = MONKEY_ELEMS[el.elem_type]
+      if el.elem_type == "signal" then
+        el.elem_value = {type = "item", name = MONKEY_ELEMS.item[rng(1, #MONKEY_ELEMS.item)]}
+      elseif pool then
+        el.elem_value = rng(1, 6) == 1 and nil or pool[rng(1, #pool)]
+      else
+        return
+      end
+      handler = "on_gui_elem_changed"
+    else
+      return
+    end
+    kinds[handler] = (kinds[handler] or 0) + 1
+    local what = el.type .. " " .. tostring(el.tags.pw) .. " " .. tostring(el.tags.path or el.tags.key or "")
+    local ok, err = pcall(R, "designer_event", handler, event)
+    actions = actions + 1
+    if not ok and #errors < 20 then errors[#errors + 1] = what .. ": " .. tostring(err) end
+  end
+  local function round()
+    rounds = rounds + 1
+    for _ = 1, 60 do act() end
+    if rounds < 120 then return 3, round end
+    for k = 1, #errors do info("error: " .. errors[k]) end
+    info(actions .. " actions: " .. serpent.line(kinds))
+    check("monkey: thousands of random inputs, no errors", #errors == 0 and actions > 4000, #errors .. " errors in " .. actions)
+    local ok, err = pcall(R, "designer_do", P, "get-code")
+    check("monkey: the planets still make codes", ok, err)
+    local ok2, err2 = pcall(R, "designer_checks", P)
+    check("monkey: the checks still run", ok2, err2)
+    -- every planet the monkey made still reads back from its code (and all go in a file for "monkeyload")
+    local all_codes = {}
+    local bad = 0
+    for i = 1, #R("designer_designs") do
+      local dd = find(root(player), function(t) return t.pw == "select-design" end)
+      if dd then
+        dd.selected_index = i
+        R("designer_event", "on_gui_selection_state_changed", {element = dd, player_index = P})
+        local one = R("designer_code", P)
+        all_codes[#all_codes + 1] = one
+        local pack = codes.decode_body(one:sub(5))
+        local problems = {}
+        if not (pack and spec.normalize(pack.planets[1], problems)) then bad = bad + 1 end
+      end
+    end
+    check("monkey: every planet still makes a good code", bad == 0, bad)
+    helpers.write_file("planet-workshop/Monkey-all.txt", table.concat(all_codes, " ") .. "\n", false)
+  end
+  return 1, round
+end
+
+local function test_monkeyload()
+  local r = report()
+  info(#r.planets .. " monkey planets loaded, " .. #r.problems .. " problems")
+  check("monkeyload: the monkey's planets load (no crash while loading)", #r.planets >= 3, #r.planets)
+  local failed = 0
+  for _, entry in ipairs(r.planets) do
+    local ok, err = pcall(function()
+      local s = game.planets[entry.planet].create_surface()
+      s.request_to_generate_chunks({0, 0}, 2)
+      s.force_generate_chunk_requests()
+    end)
+    if not ok then failed = failed + 1; info(entry.name .. ": " .. tostring(err)) end
+  end
+  check("monkeyload: every one generates", failed == 0, failed)
+end
+
 -- roundtrip: the planet designed in the designer suite, loaded from its code ------------------------------------
 
 local function test_roundtrip()
@@ -1288,8 +1644,16 @@ local SUITES = {
   testplay = test_testplay,
   startarea = test_startarea,
   startplanet = test_startplanet,
+  homestead = test_homestead,
   share = test_share,
   examples = test_examples,
+  fuzz = test_fuzz,
+  monkey = test_monkey,
+  monkeyload = test_monkeyload,
+  saveload = test_save2,
+  ["existing-removed"] = test_existing_removed,
+  ["existing-changed"] = test_existing_changed,
+  ["existing-start"] = test_existing_start,
   -- a planet given the preview's seed generates exactly the preview (what hand-made start areas rely on)
   sameworld = function()
     local player = game.players[1]

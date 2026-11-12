@@ -100,6 +100,31 @@ function M.ensure(surface, planet_name)
   return M.ensure_list(surface, info and info.starting)
 end
 
+--- The nearest spot to `center` where a character can stand on dry ground (the game's own search for a free
+--- spot doesn't mind water). Searches outward in rings, up to `radius` tiles.
+function M.dry_spot(surface, center, radius)
+  center = {x = math.floor(center.x or center[1]) + 0.5, y = math.floor(center.y or center[2]) + 0.5}
+  local function ok(x, y)
+    for dx = -1, 1 do
+      for dy = -1, 1 do
+        local tile = surface.get_tile(x + dx, y + dy)
+        if not tile.valid or tile.prototype.fluid or tile.collides_with("player") then return false end
+      end
+    end
+    return surface.can_place_entity{name = "character", position = {x, y}}
+  end
+  for r = 0, radius or 96 do
+    for dx = -r, r do
+      for dy = -r, r do
+        if math.max(math.abs(dx), math.abs(dy)) == r and ok(center.x + dx, center.y + dy) then
+          return {x = center.x + dx, y = center.y + dy}
+        end
+      end
+    end
+  end
+  return surface.find_non_colliding_position("character", center, radius or 96, 0.5) or center
+end
+
 --- A planet's own ore names: "@ore:<key>" -> its resource.
 function M.resolver(planet_id)
   return function(name)
@@ -122,8 +147,10 @@ function M.on_surface_created(event)
         mgs.seed = info.start.seed
         surface.map_gen_settings = mgs
       end
-      M.ensure(surface, planet.name)
-      if info and info.start then startarea.apply(surface, info.start, M.resolver(info.id)) end
+      -- (never let a surprise in a planet's code stop the game: log it and carry on)
+      local ok, err = pcall(M.ensure, surface, planet.name)
+      if ok and info and info.start then ok, err = pcall(startarea.apply, surface, info.start, M.resolver(info.id)) end
+      if not ok then log("Planet Workshop: setting up " .. planet.name .. " went wrong: " .. tostring(err)) end
     end
   end
 end

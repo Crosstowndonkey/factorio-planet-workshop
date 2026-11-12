@@ -51,7 +51,7 @@ function M.on_init()
   starting.on_surface_created({surface_index = surface.index}) -- (runs once per surface; in case the event came early)
   surface.request_to_generate_chunks({0, 0}, starting.GENERATE)
   surface.force_generate_chunk_requests()
-  local position = surface.find_non_colliding_position("character", {0, 0}, 64, 0.5) or {x = 0, y = 0}
+  local position = starting.dry_spot(surface, {0, 0}, 96)
   local force = game.forces.player
   force.set_spawn_position(position, surface)
   local discovery = force.technologies[wanted.discovery]
@@ -71,12 +71,22 @@ function M.on_init()
   log("Planet Workshop: new game starts on " .. wanted.name)
 end
 
+--- A starting planet set for a game that had already started: say it only counts for new games (once).
+function M.on_configuration_changed()
+  local wanted = report().start_planet
+  if not wanted then return end
+  local current = storage.start_planet
+  if (current and current.planet == wanted.planet) or storage.start_planet_noted == wanted.planet then return end
+  storage.start_planet_noted = wanted.planet
+  game.print({"planet-workshop.start-skipped-not-new", wanted.name})
+end
+
 local function move(player)
   local target = M.target()
   if not target then return end
   local surface = game.surfaces[target.surface]
   if not surface then return end
-  local position = surface.find_non_colliding_position("character", target.position, 32, 0.5) or target.position
+  local position = starting.dry_spot(surface, target.position, 32)
   player.teleport(position, surface)
 end
 

@@ -34,7 +34,13 @@ local cache
 --- Buildings with surface conditions, and recipe categories that some machine can make with fluids.
 local function game_info()
   if cache then return cache end
-  cache = {buildings = {}, fluid_categories = {}}
+  cache = {buildings = {}, fluid_categories = {}, by_hand = {}, packs = {}}
+  for _, lab in pairs(prototypes.get_entity_filtered{{filter = "type", type = "lab"}}) do
+    for _, input in ipairs(lab.lab_inputs or {}) do cache.packs[input] = true end
+  end
+  for _, e in pairs(prototypes.get_entity_filtered{{filter = "type", type = "character"}}) do
+    for category in pairs(e.crafting_categories or {}) do cache.by_hand[category] = true end
+  end
   -- (only buildings that can be built on some planet: space-platform-only ones, like thrusters, don't count)
   local planets = {}
   for name, planet in pairs(prototypes.space_location) do
@@ -226,7 +232,9 @@ function M.run(design, ps)
     for _, list in ipairs(list_of_lists) do
       for _, entry in ipairs(list) do if is_fluid(p, entry.name) then fluid = true end end
     end
-    if fluid and not game_info().fluid_categories[category] then
+    if fluid and game_info().by_hand[category] then
+      add("warning", section, L("fluid-by-hand", name))
+    elseif fluid and not game_info().fluid_categories[category] then
       add("warning", section, L("fluid-needs-machine", name))
     end
   end
@@ -249,6 +257,9 @@ function M.run(design, ps)
     for _, entry in ipairs(t.ingredients) do
       if entry.name == "@pack" then pack_used = true end
       ref_ok(entry.name, "pack", name, "research")
+      if entry.name:sub(1, 1) ~= "@" and prototypes.item[entry.name] and not game_info().packs[entry.name] then
+        add("warning", "research", L("not-a-pack", name, describe(p, entry.name)))
+      end
     end
   end
   cost_ok(p.discovery, {"planet-workshop-check.the-discovery"})

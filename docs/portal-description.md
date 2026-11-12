@@ -26,7 +26,7 @@ Start **New game > Scenarios > Planet Designer (Planet Workshop)**. A window wit
 ## Good to know
 - Planets are added when the game starts, so a new code needs a restart, like any mod setting.
 - In multiplayer, everyone needs the same codes (Factorio syncs startup settings when you join).
-- Removing a planet's code from a save that has been there may lose what was built on it. Add planets freely, remove with care.
+- Removing a planet's code from a save deletes that planet, and everything built on it, from the save. Changing a code (same planet, new version) keeps the planet; things that were taken out of it disappear. Add planets freely, remove with care.
 - All graphics are Space Age's own, tinted.
 
 ## Try it now

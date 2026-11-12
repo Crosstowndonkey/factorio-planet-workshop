@@ -12,6 +12,7 @@ local state = require("__planet-workshop__.script.designer.state")
 local preview = require("__planet-workshop__.script.designer.preview")
 local checks = require("__planet-workshop__.script.designer.checks")
 local gui = require("__planet-workshop__.script.designer.gui")
+local starting = require("__planet-workshop__.script.starting")
 
 local M = {}
 
@@ -163,7 +164,7 @@ function M.start(player)
   if ps.walking then ps.walking = false end
   local force = test_force(player)
   if opts.research == "all" then force.research_all_technologies() end
-  local position = surface.find_non_colliding_position("character", {0, 0}, 64, 0.5) or {0, 0}
+  local position = starting.dry_spot(surface, {0, 0}, 96)
   force.set_spawn_position(position, surface)
   player.teleport(position, surface)
   player.force = force

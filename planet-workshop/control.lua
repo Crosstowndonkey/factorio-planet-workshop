@@ -32,6 +32,7 @@ end)
 
 script.on_configuration_changed(function()
   tell_problems(game)
+  startplanet.on_configuration_changed()
 end)
 
 script.on_event(defines.events.on_surface_created, starting.on_surface_created)
@@ -59,6 +60,7 @@ local interface = {
   ensure_start = function(surface_index, planet_name)
     return starting.ensure(game.surfaces[surface_index], planet_name)
   end,
+  start_planet_state = function() return storage.start_planet, storage.start_planet_noted end, -- (for tests)
 }
 for name, fn in pairs(designer.remote) do interface[name] = fn end
 remote.add_interface("planet-workshop", interface)

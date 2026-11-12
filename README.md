@@ -3,7 +3,7 @@
 A Factorio 2.1 + Space Age mod: design your own planets in an in-game Planet Designer, then add them to any Space
 Age save and share them with other players as **planet codes** (like blueprint strings).
 
-**Status: 0.9.0, the test build** (all seven build steps done; playtesting before the first public release).
+**Status: 0.9.1, the test build** (all seven build steps done; playtesting before the first public release).
 What players see is in [docs/portal-description.md](docs/portal-description.md), the mod portal page, with
 pictures in [docs/gallery](docs/gallery). Example planets are in [examples/](examples) (JSON; the mod carries them
 as one code in `script/examples.lua`, made with `tools/make_code.py examples/*.json --lua ...`).
@@ -126,6 +126,16 @@ choices live in `lib/catalog.lua`.
   - **share**: remixes (unchanged imports stay the original; changed ones get their own id and credit), Copy of
     someone else's planet, a three-planet pack, the mods a code lists, a missing mod in Checks, the picture
     call, and the author in the planet's description. (bridge also checks a missing mod is reported.)
+  - **homestead**: a new game on a starting planet with the biggest start area (a lake on the landing spot, ore
+    fields, a ring road): everything there, and the player, crash site and respawns on dry land.
+  - **fuzz**: 60 random planets, half broken in every way (`tools/fuzz_planets.py`; `FUZZ_SEED`, `FUZZ_COUNT`):
+    the game starts, every surface generates, every designer section of every planet opens, very long texts.
+  - **monkey**: 7,200 random clicks, picks, slides, ticks and typing in the designer; **monkeyload** then loads
+    every planet it made as real planets.
+  - **saveload**: `tests/fixtures/designer-0.9.0-test-play.zip` (made in a real game, as tests can't save) loads
+    mid test play and carries on.
+  - **existing**: a save with Brimstone in use loaded with its code removed, changed, and with a starting planet
+    set afterwards (tests/pw-setup builds on it while the map is made).
   - **startplanet**: a new game made with Verdant as the starting planet: the player, crash site, spawn point,
     discovery, charted start, Nauvis still there, and respawning on Verdant.
   - **testplay**: every kind of check on a planet full of mistakes (and none once fixed), a loaded planet's real
@@ -135,6 +145,8 @@ choices live in `lib/catalog.lua`.
   - **codec**: codes made in game with `helpers.encode_string` read back by the mod's decoder; a 1.5 MB planet;
     428 damaged or cut codes that must fail politely; JSON edge cases.
   - **added**: the codes added to a save that was made without them.
+- `tools/mp_test.sh` (needs a desktop): a headless server and a real client run the designer together; passes if
+  neither desyncs.
 - `tools/make_code.py planet.json` makes a code from a planet JSON file (`--decode CODE` shows what's inside one).
 
 ## Releasing

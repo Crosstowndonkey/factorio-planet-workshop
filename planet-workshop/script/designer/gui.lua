@@ -87,9 +87,11 @@ local function tab_terrain(c, d)
   for i, g in ipairs(t.ground) do
     local f = c.add{type = "flow", direction = "horizontal"}
     f.style.vertical_align = "center"
-    f.add{type = "choose-elem-button", elem_type = "tile", tile = g.tile, elem_filters = {{filter = "autoplace"}},
+    local tile = prototypes.tile[g.tile]
+    f.add{type = "choose-elem-button", elem_type = "tile", tile = tile and g.tile or nil, elem_filters = {{filter = "autoplace"}},
       tags = {pw = "elem", path = "terrain.ground." .. i .. ".tile"}}
-    local label = f.add{type = "label", caption = prototypes.tile[g.tile] and prototypes.tile[g.tile].localised_name or g.tile}
+    local label = f.add{type = "label", caption = tile and tile.localised_name or L("not-in-game", g.tile)}
+    if not tile then label.style.font_color = {1, 0.5, 0.4} end
     label.style.width = 170
     f.add{type = "label", caption = L("share")}
     local slider = f.add{type = "slider", minimum_value = 1, maximum_value = 10, value_step = 1, discrete_slider = true,
@@ -146,10 +148,12 @@ local function tab_resources(c, d)
       for _, o in ipairs(d.ores or {}) do if "@ore:" .. o.key == res.resource then ore = o end end
       top.add{type = "label", caption = ore and L("own-ore-resource", ore.name or ore.key) or res.resource}.style.width = 200
     else
-      top.add{type = "choose-elem-button", elem_type = "entity", entity = res.resource,
-        elem_filters = {{filter = "type", type = "resource"}}, tags = {pw = "elem", path = "resources." .. i .. ".resource"}}
       local proto = prototypes.entity[res.resource]
-      top.add{type = "label", caption = proto and proto.localised_name or res.resource}.style.width = 160
+      top.add{type = "choose-elem-button", elem_type = "entity", entity = proto and res.resource or nil,
+        elem_filters = {{filter = "type", type = "resource"}}, tags = {pw = "elem", path = "resources." .. i .. ".resource"}}
+      local label = top.add{type = "label", caption = proto and proto.localised_name or L("not-in-game", res.resource)}
+      label.style.width = 160
+      if not proto then label.style.font_color = {1, 0.5, 0.4} end
     end
     top.add{type = "label", caption = L("starting")}
     local start = res.starting == true and "yes" or res.starting == false and "no" or "default"

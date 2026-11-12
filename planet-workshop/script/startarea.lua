@@ -155,11 +155,12 @@ function M.apply(surface, start, resolve)
         spec.amount = math.max(1, a.amount or 1000)
         spec.enable_tree_removal, spec.enable_cliff_removal = false, false -- (what was taken away is in `remove`)
       end
-      local e = surface.create_entity(spec)
-      if e then
+      -- (a code can hold anything: a value the game refuses skips that one thing, never stops the rest)
+      local ok, e = pcall(surface.create_entity, spec)
+      if ok and e then
         placed = placed + 1
-        if a.variation and e.graphics_variation then e.graphics_variation = a.variation end
-        if a.color and proto.type == "tree" then e.tree_color_index = a.color end
+        if a.variation and e.graphics_variation then pcall(function() e.graphics_variation = a.variation end) end
+        if a.color and proto.type == "tree" then pcall(function() e.tree_color_index = a.color end) end
       end
     end
   end

@@ -85,8 +85,22 @@ local function tint_sprites(graphics, tint, seen)
   end
 end
 
+--- Text as a localised string. Factorio allows at most 200 bytes per piece, so longer text is split into pieces
+--- (never inside a UTF-8 character).
+local function pieces(text)
+  local out = {""}
+  local i = 1
+  while i <= #text do
+    local j = math.min(#text, i + 199)
+    while j < #text and j > i and text:byte(j + 1) >= 0x80 and text:byte(j + 1) < 0xC0 do j = j - 1 end
+    out[#out + 1] = text:sub(i, j)
+    i = j + 1
+  end
+  return out
+end
+
 local function literal(text)
-  return text and {"", text} or nil
+  return text and pieces(text) or nil
 end
 
 -- One planet ------------------------------------------------------------------------------------------------
@@ -144,12 +158,19 @@ function Builder:resolve_tech(ref, where)
   return nil
 end
 
+--- Ingredients or results (the same thing listed twice is merged: Factorio refuses repeats).
 function Builder:ingredients(list, where, allow_fluids)
-  local out = {}
+  local out, seen = {}, {}
   for _, entry in ipairs(list) do
     local r = self:resolve_item(entry.name, where)
     if r and (allow_fluids or r.type == "item") then
-      out[#out + 1] = {type = r.type, name = r.name, amount = entry.amount}
+      local key = r.type .. "/" .. r.name
+      if seen[key] then
+        seen[key].amount = math.min(65535, seen[key].amount + entry.amount)
+      else
+        seen[key] = {type = r.type, name = r.name, amount = entry.amount}
+        out[#out + 1] = seen[key]
+      end
     end
   end
   return out
@@ -171,7 +192,14 @@ function Builder:tech_unit(cost, where)
     local r = self:resolve_item(entry.name, where)
     if r and r.type == "item" then
       if r.name == self:name("pack") or lab_accepts(r.name) then
-        ingredients[#ingredients + 1] = {r.name, entry.amount}
+        local merged = false -- (the same pack listed twice is merged: Factorio refuses repeats)
+        for _, have in ipairs(ingredients) do
+          if have[1] == r.name then
+            have[2] = math.min(65535, have[2] + entry.amount)
+            merged = true
+          end
+        end
+        if not merged then ingredients[#ingredients + 1] = {r.name, entry.amount} end
       else
         self:problem("not-a-pack", r.name, where)
       end
@@ -193,6 +221,30 @@ function Builder:category(name)
   if data.raw["recipe-category"][name] then return name end
   self:problem("missing", name, "recipe category")
   return "crafting"
+end
+
+--- Categories a character can craft by hand: Factorio refuses fluids in recipes of these.
+local function by_hand()
+  local set = {}
+  for _, character in pairs(data.raw.character or {}) do
+    for _, category in ipairs(character.crafting_categories or {}) do set[category] = true end
+  end
+  return set
+end
+
+--- A recipe's category; a recipe with fluids in a category made by hand goes to a machine with pipes instead.
+function Builder:recipe_category(name, ingredients, results, what)
+  local category = self:category(name)
+  local fluid = false
+  for _, list in ipairs{ingredients, results} do
+    for _, entry in ipairs(list) do if entry.type == "fluid" then fluid = true end end
+  end
+  if fluid and by_hand()[category] then
+    local instead = data.raw["recipe-category"]["crafting-with-fluid"] and "crafting-with-fluid" or "chemistry"
+    self:problem("fluid-by-hand", what, instead)
+    return instead
+  end
+  return category
 end
 
 function Builder:surface_conditions(only_here)
@@ -287,16 +339,17 @@ function Builder:build_science()
   end
 
   local results = {{type = "item", name = name, amount = s.count}}
+  local ingredients = self:ingredients(s.ingredients, "science pack recipe", true)
   data:extend{
     item,
     {
       type = "recipe",
       name = name,
       localised_name = literal(s.name),
-      categories = {self:category(s.category)},
+      categories = {self:recipe_category(s.category, ingredients, results, s.name)},
       enabled = false,
       energy_required = s.time,
-      ingredients = self:ingredients(s.ingredients, "science pack recipe", true),
+      ingredients = ingredients,
       results = results,
       allow_productivity = true,
       surface_conditions = self:surface_conditions(s.only_here),
@@ -312,14 +365,15 @@ function Builder:build_recipes()
       self:problem("no-results", r.name or r.key)
     else
       local name = self:name("recipe", r.key)
+      local ingredients = self:ingredients(r.ingredients, "recipe", true)
       data:extend{{
         type = "recipe",
         name = name,
         localised_name = literal(r.name),
-        categories = {self:category(r.category)},
+        categories = {self:recipe_category(r.category, ingredients, results, r.name or r.key)},
         enabled = r.enabled,
         energy_required = r.time,
-        ingredients = self:ingredients(r.ingredients, "recipe", true),
+        ingredients = ingredients,
         results = results,
         main_product = results[1].name,
         allow_productivity = true,
@@ -330,14 +384,52 @@ function Builder:build_recipes()
   end
 end
 
+--- Each own technology's prerequisites: resolved, without repeats, and without links that would close a loop
+--- (technologies that need each other can never be researched, and Factorio refuses them). {key = {names}}
+function Builder:prerequisites()
+  local own_of = {} -- prototype name -> key, for the planet's own technologies
+  for _, t in ipairs(self.p.technologies) do own_of[self:name("tech", t.key)] = t.key end
+  local needs = {}
+  local function reaches(from, target, seen)
+    for _, name in ipairs(needs[from] or {}) do
+      local key = own_of[name]
+      if key == target then return true end
+      if key and not seen[key] then
+        seen[key] = true
+        if reaches(key, target, seen) then return true end
+      end
+    end
+    return false
+  end
+  for _, t in ipairs(self.p.technologies) do
+    local list, seen = {}, {}
+    needs[t.key] = list
+    for _, ref in ipairs(t.prerequisites) do
+      local tech = self:resolve_tech(ref, "technology prerequisite")
+      local key = tech and own_of[tech]
+      if tech and not seen[tech] and key ~= t.key then
+        if key and reaches(key, t.key, {}) then
+          self:problem("research-loop", t.name)
+        else
+          seen[tech] = true
+          list[#list + 1] = tech
+        end
+      end
+    end
+  end
+  return needs
+end
+
 function Builder:build_technologies()
   local unlocked = {}
+  local needs = self:prerequisites()
   for _, t in ipairs(self.p.technologies) do
-    local effects = {}
+    local effects, rewarded = {}, {}
     for _, e in ipairs(t.effects) do
       if e.type == "unlock-recipe" then
         local recipe = self:resolve_recipe(e.recipe, "technology reward")
-        if recipe then
+        if recipe and not rewarded[recipe] then
+          rewarded[recipe] = true
           effects[#effects + 1] = {type = "unlock-recipe", recipe = recipe}
           unlocked[recipe] = true
         end
@@ -348,11 +440,7 @@ function Builder:build_technologies()
         effects[#effects + 1] = {type = e.type, modifier = e.modifier}
       end
     end
-    local prerequisites = {}
-    for _, ref in ipairs(t.prerequisites) do
-      local tech = self:resolve_tech(ref, "technology prerequisite")
-      if tech and tech ~= self:name("tech", t.key) then prerequisites[#prerequisites + 1] = tech end
-    end
+    local prerequisites = needs[t.key]
     if #prerequisites == 0 then prerequisites = {self:name("discovery")} end
 
     local icons
@@ -395,9 +483,13 @@ function Builder:build_discovery()
     effects[#effects + 1] = {type = "unlock-recipe", recipe = recipe}
   end
   local prerequisites = {}
+  local seen = {}
   for _, ref in ipairs(d.prerequisites) do
     local tech = ref:sub(1, 1) ~= "@" and self:resolve_tech(ref, "discovery prerequisite")
-    if tech then prerequisites[#prerequisites + 1] = tech end
+    if tech and not seen[tech] then
+      seen[tech] = true
+      prerequisites[#prerequisites + 1] = tech
+    end
   end
   if #prerequisites == 0 and data.raw.technology["space-platform-thruster"] then
     prerequisites = {"space-platform-thruster"}
@@ -461,7 +553,7 @@ function Builder:build_planet()
   planet.localised_name = literal(p.name)
   -- its description, then who made it (and who it's based on)
   local about = {""}
-  if p.description then about[#about + 1] = p.description end
+  if p.description then about[#about + 1] = pieces(p.description) end
   if p.author then
     about[#about + 1] = {"", (#about > 1 and "\n" or ""), {"planet-workshop.made-by", p.author}}
   end

@@ -1,4 +1,25 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.1
+Date: 2026-11-12
+  Bugfixes:
+    - The game couldn't start when a planet's research listed the same science pack twice, or the same
+      prerequisite twice; repeats are now merged.
+    - The game couldn't start when research needed research that needed it back; the link closing the loop is
+      left out (and reported).
+    - The game couldn't start when a recipe made by hand (Made in: crafting) used a fluid; such recipes are now
+      made in machines with pipes, and the designer warns about it.
+    - The game couldn't start when a description was longer than 200 characters.
+    - A hand-made start area with a value the game refuses (from a hand-edited code) could stop the game when
+      the planet was first visited; such things are now skipped.
+    - New games, respawns and test play could put you in a lake in the middle of a hand-made start area; they
+      now find dry land.
+    - The designer's Terrain and Resources sections broke for ground tiles or resources from mods that aren't
+      installed; they now show them as "not in this game".
+  Features:
+    - Checks: research paid in something no lab takes.
+    - A starting planet set after a game began now says it only counts for new games.
+    - The Planet Designer scenario has a picture in the scenario list.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.0
 Date: 2026-11-12
   Features:
