@@ -18,7 +18,7 @@ local M = {}
 local BAR = "pw_test_bar"
 
 M.DEFAULTS = {kit = "landing", research = "all", free_crafting = false, enemies = true}
-M.KITS = {"landing", "none"}
+M.KITS = {"landing", "newgame", "none"}
 M.RESEARCH = {"all", "none"}
 
 --- The landing kit: what a first rocket down to a new planet might carry. (Things that don't exist are skipped.)
@@ -31,6 +31,8 @@ local LANDING_KIT = {
   {"iron-plate", 200}, {"copper-plate", 200}, {"cargo-landing-pad", 1},
 }
 local FREEZING_KIT = {{"heating-tower", 4}, {"heat-pipe", 50}}
+--- A new Freeplay game's start (what the player has after the crash, for testing a starting planet).
+local NEW_GAME_KIT = {{"iron-plate", 16}, {"wood", 1}, {"burner-mining-drill", 1}, {"stone-furnace", 1}}
 
 function M.options(ps)
   ps.test = ps.test or {}
@@ -45,9 +47,20 @@ function M.loaded(design)
   return prototypes.space_location["pw-" .. design.id] ~= nil
 end
 
-local function give_kit(character, p)
+local function give_kit(character, p, kit)
   local main = character.get_inventory(defines.inventory.character_main)
   local list = {}
+  if kit == "newgame" then
+    for _, e in ipairs(NEW_GAME_KIT) do list[#list + 1] = e end
+    for _, e in ipairs(list) do
+      if prototypes.item[e[1]] then main.insert{name = e[1], count = e[2]} end
+    end
+    local guns = character.get_inventory(defines.inventory.character_guns)
+    local ammo = character.get_inventory(defines.inventory.character_ammo)
+    if guns and prototypes.item.pistol then guns.insert{name = "pistol", count = 1} end
+    if ammo and prototypes.item["firearm-magazine"] then ammo.insert{name = "firearm-magazine", count = 18} end
+    return
+  end
   for _, e in ipairs(LANDING_KIT) do list[#list + 1] = e end
   if p.physics.freezing then
     for _, e in ipairs(FREEZING_KIT) do list[#list + 1] = e end
@@ -157,7 +170,7 @@ function M.start(player)
   local character = surface.create_entity{name = "character", position = position, force = force}
   player.set_controller{type = defines.controllers.character, character = character}
   player.cheat_mode = opts.free_crafting == true
-  if opts.kit == "landing" then give_kit(character, p) end
+  if opts.kit ~= "none" then give_kit(character, p, opts.kit) end
 
   ps.testing = {tick = game.tick}
   gui.destroy(player)

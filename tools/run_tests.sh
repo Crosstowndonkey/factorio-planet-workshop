@@ -1,12 +1,12 @@
 #!/bin/bash
 # Runs the test suites headless in a throwaway folder (never touches ~/.factorio).
-# Usage: tools/run_tests.sh [suite ...]      suites: bridge terrain designer startarea roundtrip sameworld testplay scenario codec added (roundtrip needs designer and startarea) (default: all)
+# Usage: tools/run_tests.sh [suite ...]      suites: bridge terrain designer startarea roundtrip sameworld testplay startplanet scenario codec added (roundtrip needs designer and startarea) (default: all)
 # FACTORIO=/path/to/factorio overrides the game binary. KEEP=1 keeps the throwaway folder (its path is printed).
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FACTORIO="${FACTORIO:-/mnt/GamingSSD/SteamLibrary/steamapps/common/Factorio/bin/x64/factorio}"
 SUITES=("$@")
-[ ${#SUITES[@]} -eq 0 ] && SUITES=(bridge terrain designer startarea roundtrip sameworld testplay scenario codec added)
+[ ${#SUITES[@]} -eq 0 ] && SUITES=(bridge terrain designer startarea roundtrip sameworld testplay startplanet scenario codec added)
 WORK="$(mktemp -d)"
 if [ -n "$KEEP" ]; then echo "(work folder: $WORK)"; else trap 'rm -rf "$WORK"' EXIT; fi
 mkdir -p "$WORK/mods" "$WORK/write"
@@ -42,6 +42,7 @@ FAILED=0
 for suite in "${SUITES[@]}"; do
   echo "=== $suite"
   \cp -f "$WORK/test-codes.lua" "$WORK/mods/pw-codes/codes.lua" # (roundtrip swaps in its own code)
+  \rm -f "$WORK/mods/pw-codes/start.lua"
   if [ "$suite" = scenario ]; then
     # the Planet Designer scenario starts on a headless server without errors
     mod_list false
@@ -65,6 +66,11 @@ for suite in "${SUITES[@]}"; do
     printf -- '-- the code the designer suite made\nreturn "%s"\n' "$code" > "$WORK/mods/pw-codes/codes.lua"
     mod_list true
     run --create "$WORK/roundtrip.zip" > "$WORK/roundtrip-create.log" 2>&1 || { tail -30 "$WORK/roundtrip-create.log"; exit 1; }
+  elif [ "$suite" = startplanet ]; then
+    # a new game with Verdant as the starting planet (by name, in another case)
+    printf 'return "verdant"\n' > "$WORK/mods/pw-codes/start.lua"
+    mod_list true
+    run --create "$WORK/startplanet.zip" > "$WORK/startplanet-create.log" 2>&1 || { tail -30 "$WORK/startplanet-create.log"; exit 1; }
   elif [ "$suite" = added ]; then
     mod_list false   # make the save without any planet codes...
     run --create "$WORK/added.zip" > "$WORK/added-create.log" 2>&1 || { cat "$WORK/added-create.log"; exit 1; }

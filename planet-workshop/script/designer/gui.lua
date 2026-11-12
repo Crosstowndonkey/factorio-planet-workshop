@@ -62,6 +62,9 @@ local function tab_general(c, d)
   box.style.width = LEFT_WIDTH - 30
   box.style.height = 120
   hint(c, L("general-hint"))
+  heading(c, L("starting-planet"))
+  checkbox(c, L("starting-planet-check"), "starting_planet", d.starting_planet == true, L("starting-planet-tooltip"))
+  hint(c, L("starting-planet-hint", d.name or ""))
 end
 
 local function tab_terrain(c, d)
@@ -273,7 +276,7 @@ local function tab_checks(c, d, ps)
   if not ps.placed then hint(c, L("checks-preview-pending")) end
 end
 
-local TEST_KITS, TEST_RESEARCH = {"landing", "none"}, {"all", "none"}
+local TEST_KITS, TEST_RESEARCH = {"landing", "newgame", "none"}, {"all", "none"}
 
 local function tab_testplay(c, d, ps)
   hint(c, L("testplay-hint"))

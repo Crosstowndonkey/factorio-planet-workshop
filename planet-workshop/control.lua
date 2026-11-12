@@ -1,9 +1,13 @@
 -- Runtime: tells players about planet codes that couldn't be fully loaded, adds the /planet-workshop command that
 -- lists the loaded planets, runs the starting-resources safety net (script/starting.lua) and the Planet Designer
--- (script/designer, started by the Planet Designer scenario).
+-- (script/designer, started by the Planet Designer scenario) and moves new games to the starting planet, if one is
+-- set (script/startplanet.lua).
 
 local starting = require("script.starting")
 local designer = require("script.designer.init")
+local startplanet = require("script.startplanet")
+
+script.on_init(startplanet.on_init)
 
 local function report()
   local proto = prototypes.mod_data["planet-workshop-report"]
@@ -22,6 +26,7 @@ end
 
 script.on_event(defines.events.on_player_created, function(event)
   tell_problems(game.get_player(event.player_index))
+  startplanet.on_player_created(event)
   designer.on_player_created(event)
 end)
 
@@ -31,8 +36,14 @@ end)
 
 script.on_event(defines.events.on_surface_created, starting.on_surface_created)
 script.on_event(defines.events.on_tick, designer.on_tick)
-script.on_event(defines.events.on_player_died, designer.on_player_died)
-script.on_event(defines.events.on_player_respawned, designer.on_player_respawned)
+script.on_event(defines.events.on_player_died, function(event)
+  startplanet.on_player_died(event)
+  designer.on_player_died(event)
+end)
+script.on_event(defines.events.on_player_respawned, function(event)
+  startplanet.on_player_respawned(event)
+  designer.on_player_respawned(event)
+end)
 script.on_event(defines.events.on_player_selected_area, designer.on_player_selected_area)
 script.on_event(defines.events.on_player_alt_selected_area, designer.on_player_alt_selected_area)
 script.on_event(defines.events.on_gui_click, designer.on_gui_click)

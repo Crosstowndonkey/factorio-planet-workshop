@@ -1,4 +1,17 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.0.7
+Date: 2026-11-12
+  Features:
+    - Start on your own planet: a new "Starting planet" startup setting (type a loaded planet's name). New
+      Freeplay games then start there: the crash site, the first landing, the intro message, the charted start
+      area and respawns are on that planet, its discovery is already researched, and Nauvis is a planet to fly to
+      later. Works with hand-made start areas.
+    - Designer: "Made to be a starting planet" (General) adds checks for what a new game needs (iron, copper,
+      stone, fuel, oil, water, air for burner buildings, no freezing or lightning), and test play gets a
+      "New game" starter kit.
+  Info:
+    - The starting planet is only used in new Freeplay games, and not together with Any Planet Start.
+---------------------------------------------------------------------------------------------------
 Version: 0.0.6
 Date: 2026-11-12
   Features:

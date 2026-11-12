@@ -741,6 +741,30 @@ local function test_testplay()
   list = R("designer_checks", P)
   check("fixed planet: no problems or warnings", #list == 0 or list[1].level == "note", check_keys(list))
 
+  -- made to be a starting planet: what a new game needs
+  R("designer_do", P, "new")
+  R("designer_set", P, "starting_planet", true)
+  R("designer_set", P, "resources", {{resource = "iron-ore", frequency = 1, size = 1, richness = 1},
+    {resource = "copper-ore", frequency = 1, size = 1, richness = 1, starting = false}})
+  R("designer_set", P, "physics.pressure", 5)
+  R("designer_set", P, "physics.freezing", true)
+  list = R("designer_checks", P)
+  info("starting planet checks: " .. check_keys(list))
+  check("starting planet: needs stone, coal and oil", has_check(list, "start-needs") and has_check(list, "start-needs-oil"))
+  check("starting planet: copper should be near the start", has_check(list, "start-not-near"))
+  check("starting planet: burner buildings need air", has_check(list, "start-burner"))
+  check("starting planet: freezing", has_check(list, "start-freezing"))
+  R("designer_set", P, "resources", {{resource = "iron-ore"}, {resource = "copper-ore"}, {resource = "stone"},
+    {resource = "coal"}, {resource = "crude-oil"}})
+  R("designer_set", P, "physics.pressure", 1000)
+  R("designer_set", P, "physics.freezing", false)
+  list = R("designer_checks", P)
+  check("a good starting planet: no warnings", #list == 0 or list[1].level == "note", check_keys(list))
+  R("designer_tab", P, "general")
+  check("the starting planet switch is in General", find(root(player), function(t) return t.path == "starting_planet" end) ~= nil)
+  local code = codes.decode_body(R("designer_code", P):sub(5))
+  check("the code says it's made to be a starting planet", code and code.planets[1].starting_planet == true)
+
   -- a loaded planet's own ores are the real ones in the preview
   R("designer_import", P, settings.startup["planet-workshop-planets"].value)
   for i, d in ipairs(R("designer_designs")) do
@@ -809,8 +833,17 @@ local function test_testplay()
         not player.force.technologies["automation"].researched and
         player.character.get_main_inventory().get_item_count("electric-mining-drill") == 0)
       check("enemies asleep when asked", surface.peaceful_mode)
-      player.character.die()
-      return 120, function()
+      R("designer_do", P, "test-stop")
+      R("designer_tab", P, "testplay")
+      local kit = find(root(player), function(t) return t.pw == "test-pick" and t.key == "kit" end)
+      kit.selected_index = index_of_value(kit.tags.values, "newgame")
+      R("designer_event", "on_gui_selection_state_changed", {element = kit, player_index = P})
+      R("designer_do", P, "test-start")
+      return 10, function()
+        check("the New game kit", player.character and player.character.get_item_count("burner-mining-drill") == 1 and
+          player.character.get_item_count("pistol") == 1 and player.character.get_item_count("electric-mining-drill") == 0)
+        player.character.die()
+        return 120, function()
         check("dying ends test play", player.controller_type == defines.controllers.god and player.character == nil and
           player.surface.name == "nauvis" and R("designer_player", P).testing == nil, player.controller_type)
         check("dying: the window is back", root(player) ~= nil)
@@ -821,6 +854,7 @@ local function test_testplay()
             player.controller_type)
         end
       end
+    end
     end
   end
 end
@@ -936,6 +970,40 @@ local function test_startarea()
         R("designer_tab", P, "start")
         check("the start section builds with changes", root(player) ~= nil)
       end
+    end
+  end
+end
+
+-- startplanet: a new game started on Verdant ---------------------------------------------------------------------
+
+local function test_startplanet()
+  local V = "pw-verd0005"
+  local player = game.players[1]
+  info("level: " .. serpent.line(script.level))
+  check("the starting planet is known", report().start_planet and report().start_planet.planet == V,
+    serpent.line(report().start_planet))
+  check("the player starts on Verdant", player.surface.name == V, player.surface.name)
+  check("with a body", player.character ~= nil and player.character.surface.name == V)
+  local s = game.surfaces[V]
+  local spawn = player.force.get_spawn_position(s)
+  check("the force's spawn point is on Verdant", s ~= nil and math.abs(player.position.x - spawn.x) < 40 and
+    math.abs(player.position.y - spawn.y) < 40, serpent.line(spawn))
+  check("Verdant's discovery is researched", player.force.technologies[V .. "-discovery"].researched)
+  local crash_here = s.count_entities_filtered{name = "crash-site-spaceship"}
+  local crash_nauvis = game.surfaces.nauvis.count_entities_filtered{name = "crash-site-spaceship"}
+  info("crash site: Verdant " .. crash_here .. ", Nauvis " .. crash_nauvis)
+  check("no crash site left on Nauvis", crash_nauvis == 0)
+  check("the starting items", player.get_item_count("burner-mining-drill") >= 1 or
+    (player.character and player.character.get_item_count("burner-mining-drill") >= 1), player.get_item_count("pistol"))
+  check("iron near the start", nearest(s, "iron-ore", 224) <= 200)
+  if player.controller_type == defines.controllers.cutscene then player.exit_cutscene() end
+  return 60, function()
+    check("the start area is charted", player.force.is_chunk_charted(s, {0, 0}) and player.force.is_chunk_charted(s, {5, 5}))
+    check("Nauvis is still there, to fly to later", game.planets.nauvis.surface ~= nil)
+    if player.character then player.character.die() end
+    return 1200, function()
+      check("after dying, the player respawns on Verdant", player.surface.name == V and player.character ~= nil,
+        player.surface.name .. " " .. tostring(player.controller_type))
     end
   end
 end
@@ -1093,6 +1161,7 @@ local SUITES = {
   codec = test_codec,
   testplay = test_testplay,
   startarea = test_startarea,
+  startplanet = test_startplanet,
   -- a planet given the preview's seed generates exactly the preview (what hand-made start areas rely on)
   sameworld = function()
     local player = game.players[1]

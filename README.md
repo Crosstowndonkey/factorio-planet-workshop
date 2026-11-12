@@ -3,9 +3,11 @@
 A Factorio 2.1 + Space Age mod: design your own planets in an in-game Planet Designer, then add them to any Space
 Age save and share them with other players as **planet codes** (like blueprint strings).
 
-**Status: step 5 (hand-made start areas) is done**: the designer's **Start area** section opens Factorio's map
-editor on the planet to shape the land around the landing spot; the planet then always generates from that
-world's seed with the changes on top. **Earlier: step 4 (test play and checks)**: **Test play** lands you on the
+**Status: step 5b (start on your own planet) is done**: the "Starting planet" startup setting makes new Freeplay
+games start on one of your planets (crash site, landing, respawns there; Nauvis to fly to later), and the designer
+can check a planet made to be started on. **Earlier: step 5 (hand-made start areas)**: the designer's **Start
+area** section opens Factorio's map editor on the planet to shape the land around the landing spot.
+**Earlier: step 4 (test play and checks)**: **Test play** lands you on the
 preview planet as a character, and **Checks** lists what could make a planet unplayable.
 **Earlier: step 3 (production) and step
 2 (the Planet Designer).** Start **New game > Scenarios > Planet Designer (Planet
@@ -69,6 +71,11 @@ finished preview runs the starting-resources safety net, like the real planet's 
 planet's surface properties on the preview (`LuaSurface.set_property`) and gives the tester their own force
 (`pw-test-<player>`); freezing and lightning are planet-prototype only, so test play can't show them.
 
+**Starting planet** (`script/startplanet.lua`): at `on_init` of a new freeplay game (tick 0) the planet's surface
+is made and the force's spawn point put there. Freeplay handles `on_player_created` before mods, so its crash
+site is switched off (remote `freeplay.set_disable_crashsite`) and made on the planet with the `crash-site`
+library when the first player has been moved there. Deaths on the planet respawn there.
+
 **Hand-made start areas** (`script/startarea.lua`, `script/designer/startedit.lua`): a planet given a seed
 generates tile-for-tile like the preview on that seed (the `sameworld` test checks it), so a start area is stored
 as *changes*: the seed, runs of changed tiles, things placed and things taken away (`start` in the code). Editing
@@ -103,7 +110,7 @@ choices live in `lib/catalog.lua`.
 
 ## Developing
 
-- `tools/run_tests.sh [bridge terrain designer startarea roundtrip sameworld testplay scenario codec added]` runs the headless test suites in a throwaway folder (never
+- `tools/run_tests.sh [bridge terrain designer startarea roundtrip sameworld testplay startplanet scenario codec added]` runs the headless test suites in a throwaway folder (never
   `~/.factorio`). `KEEP=1` keeps the folder for reading logs.
   - **bridge**: the test planets (including Frostbite, which is full of mistakes) plus a broken code and a
     too-new code, loaded into a new game: prototypes, generated terrain and ore, research, and real assemblers
@@ -118,6 +125,8 @@ choices live in `lib/catalog.lua`.
     a tree taken away, a chest that isn't kept), shown in the preview, in the code, and Cancel; **roundtrip**
     then loads it and checks the real planet has every change. **sameworld**: preview and planet on one seed
     are identical.
+  - **startplanet**: a new game made with Verdant as the starting planet: the player, crash site, spawn point,
+    discovery, charted start, Nauvis still there, and respawning on Verdant.
   - **testplay**: every kind of check on a planet full of mistakes (and none once fixed), a loaded planet's real
     ores in the preview, and test play: the body, kit, force, research, physics, enemies, coming back, the
     options, and dying.

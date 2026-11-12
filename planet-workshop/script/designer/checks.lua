@@ -170,13 +170,41 @@ function M.run(design, ps)
     add("note", "resources", L("start-patch-added", proto and proto.localised_name or entity))
   end
 
+  -- A starting planet: what a new game needs to get going and get to space (from Nauvis's usual start)
+  if p.starting_planet then
+    local have = {}
+    for _, res in ipairs(p.resources) do have[res.resource] = res end
+    local trees = false
+    for _, style in ipairs(p.terrain.plants.styles) do
+      if style == "forest" or style == "dry-trees" then trees = true end
+    end
+    for _, need in ipairs{"iron-ore", "copper-ore", "stone", "coal", "crude-oil"} do
+      local proto = prototypes.entity[need]
+      local name = proto and proto.localised_name or need
+      if not have[need] then
+        if need == "coal" and trees then
+          add("note", "resources", L("start-wood-only"))
+        else
+          add("warning", "resources", L(need == "crude-oil" and "start-needs-oil" or "start-needs", name))
+        end
+      elseif have[need].starting == "no" and need ~= "crude-oil" then
+        add("warning", "resources", L("start-not-near", name))
+      end
+    end
+    if p.physics.pressure < 10 then add("warning", "physics", L("start-burner")) end
+    if p.physics.freezing then add("warning", "physics", L("start-freezing")) end
+    if p.physics.lightning then add("warning", "physics", L("start-lightning")) end
+  end
+
   -- Liquid and enemies
   local water = false
   local liquid = ({water = "water", lava = "lava", oil = "oil-ocean-shallow", ammonia = "ammoniacal-ocean",
     slime = "wetland-light-green-slime"})[p.terrain.liquid]
   local tile = liquid and prototypes.tile[liquid]
   if tile and tile.fluid and tile.fluid.name == "water" then water = true end
-  if not water then add("note", "terrain", L("no-water")) end
+  if not water then
+    if p.starting_planet then add("warning", "terrain", L("start-needs-water")) else add("note", "terrain", L("no-water")) end
+  end
   if p.enemies.kind == "pentapods" and p.terrain.liquid ~= "slime" then
     add("warning", "enemies", L("pentapods-need-slime"))
   end

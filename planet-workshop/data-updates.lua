@@ -8,6 +8,17 @@ kitdefs.define() -- the terrain kit every planet and the designer preview use
 
 local found, problems = codes.read_all(settings.startup["planet-workshop-planets"].value)
 local report = build.build_all(found, problems)
+-- The starting planet (by name or id, any case), if one is set
+local wanted = settings.startup["planet-workshop-start-planet"].value
+if wanted ~= "" then
+  local key = wanted:lower()
+  for _, planet in ipairs(report.planets) do
+    if planet.name:lower() == key or planet.id == key then
+      report.start_planet = {planet = planet.planet, name = planet.name, discovery = planet.discovery}
+    end
+  end
+  if not report.start_planet then problems[#problems + 1] = {"planet-workshop-problem.start-planet-missing", wanted} end
+end
 for _, problem in ipairs(problems) do
   log("Planet Workshop problem: " .. serpent.line(problem))
 end

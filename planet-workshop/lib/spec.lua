@@ -138,6 +138,8 @@ function M.normalize(raw, problems)
     name = text(raw.name, M.LIMITS.name, "Unnamed planet"),
     description = text(raw.description, M.LIMITS.description, nil),
     author = text(raw.author, M.LIMITS.author, nil),
+    -- made to be started on (the "Starting planet" setting picks it; this asks the designer for extra checks)
+    starting_planet = raw.starting_planet == true or nil,
   }
 
   -- "auto" picture: the vanilla planet closest in colour to the ground (see catalog.closest_picture);
