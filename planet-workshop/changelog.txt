@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.0.1
+Date: 2026-11-20
+  Changes:
+    - The mod now declares the Space Age features it uses, so it shows up when the mod portal's
+      "Space Age" filter is ticked.
+---------------------------------------------------------------------------------------------------
 Version: 1.0.0
 Date: 2026-11-12
   Features:

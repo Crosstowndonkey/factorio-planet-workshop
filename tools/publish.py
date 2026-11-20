@@ -26,7 +26,7 @@ SOURCE = "https://github.com/Crosstowndonkey/factorio-planet-workshop"
 DESCRIPTION = os.path.join(ROOT, "docs", "portal-description.md")
 GALLERY = os.path.join(ROOT, "docs", "gallery")
 # sent with every details update, so they can't be cleared by being left out
-DETAILS = [("tags", "environment"), ("tags", "enemies"), ("tags", "mining")]
+DETAILS = [("tags", "planets"), ("tags", "environment"), ("tags", "enemies"), ("tags", "mining")]
 if SOURCE:
     DETAILS.append(("homepage", SOURCE))
 
