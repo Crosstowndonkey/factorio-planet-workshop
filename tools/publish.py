@@ -25,8 +25,10 @@ API = "https://mods.factorio.com/api/v2/mods"
 SOURCE = "https://github.com/Crosstowndonkey/factorio-planet-workshop"
 DESCRIPTION = os.path.join(ROOT, "docs", "portal-description.md")
 GALLERY = os.path.join(ROOT, "docs", "gallery")
-# sent with every details update, so they can't be cleared by being left out
-DETAILS = [("tags", "planets"), ("tags", "environment"), ("tags", "enemies"), ("tags", "mining")]
+# sent with every release and details update, so they can't be cleared by being left out
+with open(os.path.join(ROOT, MOD, "info.json")) as f:
+    SUMMARY = json.load(f)["description"]
+DETAILS = [("summary", SUMMARY), ("tags", "planets"), ("tags", "environment"), ("tags", "enemies"), ("tags", "mining")]
 if SOURCE:
     DETAILS.append(("homepage", SOURCE))
 
@@ -95,6 +97,8 @@ def main():
         upload_url = curl(f"{API}/releases/init_upload", [("mod", MOD)])["upload_url"]
         result = curl(upload_url, [("file", "@" + zip_path)], auth=False)
         print("Release uploaded:", result)
+        details = curl(f"{API}/edit_details", [("mod", MOD)] + DETAILS)  # summary and tags
+        print("Details updated:", details.get("url"))
     print(f"https://mods.factorio.com/mod/{MOD}")
 
 

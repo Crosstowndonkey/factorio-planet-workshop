@@ -1,11 +1,11 @@
 {
   "name": "planet-workshop",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "title": "Planet Workshop",
   "author": "Crosstowndonkey",
   "factorio_version": "2.1",
   "homepage": "https://github.com/Crosstowndonkey/factorio-planet-workshop",
-  "description": "Design your own Space Age planets - terrain, ores, enemies, physics, science pack, recipes and research - and share them as planet codes.",
+  "description": "Design your own Space Age planets - terrain, ores, enemies, physics, science pack, recipes and research. Each planet becomes a planet code, a line of text like a blueprint string: paste a code into the mod settings to play that planet in your own game, and share your codes with friends or post them online for anyone to play.",
   "dependencies": [
     "base >= 2.1",
     "space-age"
