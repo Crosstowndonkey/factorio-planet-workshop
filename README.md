@@ -159,3 +159,5 @@ choices live in `lib/catalog.lua`.
 ## Licence
 
 MIT (see LICENSE). No images are shipped: everything is vanilla art, tinted.
+
+Share your planet codes, find other people's, or report a bug on the [Donkeywork Games Discord](https://discord.gg/AabyFdsP5p) (#planet-codes and #mod-bugs).
