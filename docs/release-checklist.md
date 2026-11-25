@@ -15,3 +15,6 @@ for about 15 minutes in your real game with only Planet Workshop and Space Age e
    you crash-land there?
 7. **Back in the designer.** Load the designer save: are your designs there? Import the code again: same planet?
 8. Clear the two settings again if you don't want the planet in your normal games.
+
+(1.0.3: steps 1, 3, 4 and 6 were also run by Claude with real mouse and keyboard input in a throwaway Factorio folder,
+using ~/Projects/input-tools - that run found the preview and guide bugs the headless tests couldn't.)

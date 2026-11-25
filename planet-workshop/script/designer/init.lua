@@ -536,6 +536,7 @@ function M.on_gui_text_changed(event)
   if not el then return end
   if tags.pw == "text" then
     M.set(player, tags.path, el.text, false)
+    if tags.path == "name" then gui.name_changed(player, el.text) end
   elseif tags.pw == "num" then
     local n = tonumber(el.text)
     if n then M.set(player, tags.path, n * (tags.scale or 1), false) end
@@ -562,6 +563,13 @@ function M.on_tick()
   end
   testplay.on_tick()
   startedit.on_tick()
+end
+
+--- Esc (or opening something else) on the guide, Share or Import window closes it.
+function M.on_gui_closed(event)
+  local el = event.element
+  if not (el and el.valid and el.get_mod() == script.mod_name) then return end
+  if el.name == gui.HELP or el.name == gui.CODE or el.name == gui.IMPORT then el.destroy() end
 end
 
 function M.on_player_selected_area(event)
@@ -623,6 +631,7 @@ M.remote = {
     local design, ps = state.current(player)
     return checks.run(design, ps)
   end,
+  designer_pending = function(player_index) return preview.pending(player_index) end, -- is the preview still being made?
   designer_settle = function(player_index) -- finish the preview now (generate it and run the safety net)
     local surface = game.surfaces[preview.surface_name(player_index)]
     surface.request_to_generate_chunks({0, 0}, preview.RADIUS)

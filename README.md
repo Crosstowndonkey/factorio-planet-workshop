@@ -108,8 +108,10 @@ choices live in `lib/catalog.lua`.
 
 ## Developing
 
-- `tools/run_tests.sh [bridge terrain designer startarea roundtrip sameworld testplay startplanet share scenario codec added]` runs the headless test suites in a throwaway folder (never
-  `~/.factorio`). `KEEP=1` keeps the folder for reading logs.
+- `tools/run_tests.sh [bridge terrain designer tinymap startarea roundtrip sameworld testplay startplanet share scenario codec added]` runs the headless test suites in a throwaway folder (never
+  `~/.factorio`). `KEEP=1` keeps the folder for reading logs. `EXTRA_MODS="/path/a_1.0.0.zip /path/b ..."` also
+  loads other mods in every suite (linked, never changed), to check Planet Workshop alongside a player's mod set -
+  1.0.3 was checked with Muluna, PlanetsLib, Alien Biomes graphics, Visible Planets and Cargo Cannon.
   - **bridge**: the test planets (including Frostbite, which is full of mistakes) plus a broken code and a
     too-new code, loaded into a new game: prototypes, generated terrain and ore, research, and real assemblers
     showing the pack is only made on its planet.
@@ -117,6 +119,8 @@ choices live in `lib/catalog.lua`.
     enemies, pictures and skies, starting resources on several seeds, and the safety net on a buried seed.
   - **designer**: the window and its real controls, the preview, Get code / Import, New / Copy / Delete, and
     that the preview's map settings match the finished planet's.
+  - **tinymap**: the designer on a 64 x 64-tile map, like the scenario's own: the preview finishes by itself, the
+    How it works guide stays open (and Esc closes it), a typed name shows at once.
   - **roundtrip**: the planet the designer suite built with the real controls (own ore and fluid, pack, recipe,
     research) is loaded from its code in a new game and checked.
   - **startarea**: a start area made through the real buttons and the editor (water, copper, the own-ore brush,

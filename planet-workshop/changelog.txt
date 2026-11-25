@@ -1,4 +1,17 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.0.3
+Date: 2026-11-25
+  Bugfixes:
+    - The preview in the Planet Designer scenario never finished: it stopped with only its middle part made, the
+      "Making the preview..." note stayed up, and its starting resources were never placed. (The preview took its map
+      size from the scenario's own small map.) It now always finishes, however long the map takes to make.
+    - The "How it works" guide was hidden behind the designer window when the scenario started.
+    - A planet's new name showed in the planet list and the starting-planet hint only after switching sections.
+  Changes:
+    - Esc closes the How it works, Get code and Import code windows.
+    - A planet code that got broken over several lines (some chat apps, emails and text files wrap long lines) is
+      joined back up when pasted into the mod settings or Import code.
+---------------------------------------------------------------------------------------------------
 Version: 1.0.2
 Date: 2026-11-20
   Changes:

@@ -55,6 +55,7 @@ script.on_event(defines.events.on_gui_selection_state_changed, designer.on_gui_s
 script.on_event(defines.events.on_gui_checked_state_changed, designer.on_gui_checked_state_changed)
 script.on_event(defines.events.on_gui_elem_changed, designer.on_gui_elem_changed)
 script.on_event(defines.events.on_gui_text_changed, designer.on_gui_text_changed)
+script.on_event(defines.events.on_gui_closed, designer.on_gui_closed)
 
 -- remote.call("planet-workshop", ...): "ensure_start" (the safety net, for tests and other mods),
 -- "start_designer" (the scenario) and the designer_* calls the tests use.

@@ -1,18 +1,27 @@
 #!/bin/bash
 # Runs the test suites headless in a throwaway folder (never touches ~/.factorio).
-# Usage: tools/run_tests.sh [suite ...]      suites: bridge terrain designer startarea roundtrip sameworld testplay startplanet homestead share examples fuzz monkey monkeyload saveload existing scenario codec added (roundtrip needs designer and startarea) (default: all)
+# Usage: tools/run_tests.sh [suite ...]      suites: bridge terrain designer tinymap startarea roundtrip sameworld testplay startplanet homestead share examples fuzz monkey monkeyload saveload existing scenario codec added (roundtrip needs designer and startarea) (default: all)
 # FACTORIO=/path/to/factorio overrides the game binary. KEEP=1 keeps the throwaway folder (its path is printed).
+# EXTRA_MODS="/path/a_1.0.0.zip /path/b ..." also loads those mods (zips or folders) in every suite - e.g. a player's
+# own mod set, to check Planet Workshop works alongside it. They are linked, never changed.
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FACTORIO="${FACTORIO:-/mnt/GamingSSD/SteamLibrary/steamapps/common/Factorio/bin/x64/factorio}"
 SUITES=("$@")
-[ ${#SUITES[@]} -eq 0 ] && SUITES=(bridge terrain designer startarea roundtrip sameworld testplay startplanet homestead share examples fuzz monkey monkeyload saveload existing scenario codec added)
+[ ${#SUITES[@]} -eq 0 ] && SUITES=(bridge terrain designer tinymap startarea roundtrip sameworld testplay startplanet homestead share examples fuzz monkey monkeyload saveload existing scenario codec added)
 WORK="$(mktemp -d)"
 if [ -n "$KEEP" ]; then echo "(work folder: $WORK)"; else trap 'rm -rf "$WORK"' EXIT; fi
 mkdir -p "$WORK/mods" "$WORK/write"
 ln -s "$ROOT/planet-workshop" "$WORK/mods/planet-workshop"
 ln -s "$ROOT/tests/pw-tests" "$WORK/mods/pw-tests"
 ln -s "$ROOT/tests/pw-setup" "$WORK/mods/pw-setup"
+EXTRA_LIST=""
+for m in $EXTRA_MODS; do
+  ln -s "$m" "$WORK/mods/$(basename "$m")"
+  name=$(basename "$m"); name=${name%.zip}; name=${name%_[0-9]*}
+  EXTRA_LIST="$EXTRA_LIST,{\"name\":\"$name\",\"enabled\":true}"
+done
+[ -n "$EXTRA_MODS" ] && echo "(with extra mods:$(echo "$EXTRA_LIST" | grep -o '"name":"[^"]*"' | cut -d'"' -f4 | tr '\n' ' '))"
 # pw-codes is copied, not linked: the codes file is written into it
 mkdir -p "$WORK/mods/pw-codes"
 \cp -f "$ROOT/tests/pw-codes/"* "$WORK/mods/pw-codes/"
@@ -25,7 +34,7 @@ mod_list() {  # mod_list <true|false: load the test codes> [true: the pw-setup m
   cat > "$WORK/mods/mod-list.json" <<JSON
 {"mods":[{"name":"base","enabled":true},{"name":"space-age","enabled":true},{"name":"quality","enabled":true},
 {"name":"elevated-rails","enabled":true},{"name":"recycler","enabled":true},{"name":"planet-workshop","enabled":true},
-{"name":"pw-tests","enabled":true},{"name":"pw-codes","enabled":$1},{"name":"pw-setup","enabled":${2:-false}}]}
+{"name":"pw-tests","enabled":true},{"name":"pw-codes","enabled":$1},{"name":"pw-setup","enabled":${2:-false}}$EXTRA_LIST]}
 JSON
 }
 printf '[path]\nread-data=__PATH__system-read-data__\nwrite-data=%s\n' "$WORK/write" > "$WORK/config.ini"
@@ -115,6 +124,11 @@ PY
     printf 'return "Homestead"\n' > "$WORK/mods/pw-codes/start.lua"
     mod_list true
     run --create "$WORK/homestead.zip" > "$WORK/homestead-create.log" 2>&1 || { tail -30 "$WORK/homestead-create.log"; exit 1; }
+  elif [ "$suite" = tinymap ]; then
+    # a game whose map is 64 x 64 tiles, like the Planet Designer scenario's own map
+    mod_list false
+    printf '{"width": 64, "height": 64}' > "$WORK/tiny-mgs.json"
+    run --create "$WORK/tinymap.zip" --map-gen-settings "$WORK/tiny-mgs.json" > "$WORK/tinymap-create.log" 2>&1 || { tail -30 "$WORK/tinymap-create.log"; exit 1; }
   elif [ "$suite" = startplanet ]; then
     # a new game with Verdant as the starting planet (by name, in another case)
     printf 'return "verdant"\n' > "$WORK/mods/pw-codes/start.lua"

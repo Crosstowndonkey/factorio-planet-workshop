@@ -98,7 +98,7 @@ local function tab_general(c, d, ps, player)
   hint(c, L("general-hint"))
   heading(c, L("starting-planet"))
   checkbox(c, L("starting-planet-check"), "starting_planet", d.starting_planet == true, L("starting-planet-tooltip"))
-  hint(c, L("starting-planet-hint", d.name or ""))
+  hint(c, L("starting-planet-hint", d.name or "")).name = "pw_start_hint"
 end
 
 local function tab_terrain(c, d)
@@ -394,7 +394,7 @@ function M.build(player)
   tools.add{type = "label", caption = L("planet"), style = "caption_label"}
   local names = {}
   for i, d in ipairs(storage.designer.designs) do names[i] = d.name ~= "" and d.name or "?" end
-  tools.add{type = "drop-down", items = names, selected_index = ps.current, tags = {pw = "select-design"}}.style.width = 220
+  tools.add{type = "drop-down", name = "pw_designs", items = names, selected_index = ps.current, tags = {pw = "select-design"}}.style.width = 220
   tools.add{type = "button", caption = L("new"), tooltip = L("new-tooltip"), tags = {pw = "new"}}
   tools.add{type = "button", caption = L("copy"), tooltip = L("copy-tooltip"), tags = {pw = "copy"}}
   tools.add{type = "button", caption = ps.confirm_delete and L("delete-confirm") or L("delete"), tags = {pw = "delete"},
@@ -463,6 +463,31 @@ function M.build(player)
   frame.add{type = "flow", name = "status", direction = "vertical"}
   M.update_status(player)
   if not location then frame.force_auto_center() end -- (after the content, so it centres the full size)
+  -- the guide, Share and Import windows stay in front (a rebuild - e.g. when a player's screen size becomes known
+  -- just after they join - would otherwise draw the main window over them)
+  for _, name in ipairs{HELP, CODE, IMPORT} do
+    if player.gui.screen[name] then player.gui.screen[name].bring_to_front() end
+  end
+end
+
+local function find_named(el, name)
+  if el.name == name then return el end
+  for _, child in pairs(el.children) do
+    local found = find_named(child, name)
+    if found then return found end
+  end
+end
+
+--- The planet's name was typed: show it in the planet list and the starting-planet hint straight away (the window
+--- isn't rebuilt while typing - that would take the text field's focus away).
+function M.name_changed(player, text)
+  local frame = player.gui.screen[ROOT]
+  if not frame then return end
+  local list = find_named(frame, "pw_designs")
+  local ps = state.player(player.index)
+  if list and ps.current and ps.current <= #list.items then list.set_item(ps.current, text ~= "" and text or "?") end
+  local h = find_named(frame, "pw_start_hint")
+  if h then h.caption = L("starting-planet-hint", text) end
 end
 
 --- True if the window shows a preview camera (it doesn't before the first preview exists).
@@ -523,6 +548,7 @@ local function popup(player, name, caption)
   drag.style.horizontally_stretchable = true
   drag.style.height = 24
   bar.add{type = "sprite-button", sprite = "utility/close", style = "frame_action_button", tags = {pw = "close", window = name}}
+  player.opened = frame -- so Esc closes it, as players expect (on_gui_closed in init.lua)
   return frame
 end
 

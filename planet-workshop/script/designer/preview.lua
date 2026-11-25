@@ -59,6 +59,9 @@ function M.evaluate(design, seed)
   local mgs = made.mgs
   mgs.seed = seed
   mgs.starting_points = {{x = 0, y = 0}}
+  -- Unlimited size, always: settings left out come from the game's own map, and the Planet Designer scenario's map is
+  -- tiny (64 x 64 tiles), which stopped the preview at its middle 16 chunks.
+  mgs.width, mgs.height = 0, 0
   return p, made, problems
 end
 
@@ -143,6 +146,10 @@ function M.generate_due()
           storage.designer.chart[index] = math.max(game.tick + 60, until_tick) -- chart the added patches too
           until_tick = storage.designer.chart[index]
         end
+      end
+      if (storage.designer.settling or {})[index] then -- not all made yet (a slow PC, a busy game): keep looking
+        until_tick = math.max(until_tick, game.tick + 30)
+        storage.designer.chart[index] = until_tick
       end
       if game.tick >= until_tick then storage.designer.chart[index] = nil end
     end

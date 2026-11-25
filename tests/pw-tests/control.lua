@@ -717,7 +717,13 @@ local function test_testplay()
   check("an own ore that never generates", has_check(list, "ore-not-generated", "warning"))
   check("no resources at all", has_check(list, "no-resources", "warning"))
   check("a recipe that makes nothing", has_check(list, "makes-nothing", "warning"))
-  check("a fluid in a furnace recipe", has_check(list, "fluid-needs-machine", "warning"))
+  -- (vanilla furnaces have no pipes; a mod may add a smelting machine that has, and then there's nothing to warn about)
+  local piped_smelter
+  for _, e in pairs(prototypes.get_entity_filtered{{filter = "crafting-machine"}}) do
+    if #e.fluidbox_prototypes > 0 and (e.crafting_categories or {}).smelting then piped_smelter = e.name end
+  end
+  check("a fluid in a furnace recipe: warned unless a smelting machine has pipes",
+    has_check(list, "fluid-needs-machine", "warning") == (piped_smelter == nil), "piped smelter: " .. tostring(piped_smelter))
   check("a reference to an ore that doesn't exist", has_check(list, "missing-ref", "warning"))
   check("research that needs itself", has_check(list, "research-loop", "warning"))
   check("research with no rewards", has_check(list, "no-rewards", "note"))
@@ -979,6 +985,60 @@ local function test_startarea()
 end
 
 -- startplanet: a new game started on Verdant ---------------------------------------------------------------------
+
+-- The Planet Designer scenario's own map is tiny (64 x 64 tiles), like the one this suite runs on (tools/run_tests.sh
+-- makes it so). Found by a real-input test of the scenario (1.0.3): the preview took its size from the game's map and
+-- never finished; the "How it works" guide was hidden behind the window rebuilt when the screen size became known; a
+-- typed name showed in the planet list only after the next rebuild.
+local function test_tinymap()
+  local player = game.players[1]
+  local P = player.index
+  check("the game's map is tiny here (as in the scenario)", game.surfaces.nauvis.map_gen_settings.width == 64,
+    tostring(game.surfaces.nauvis.map_gen_settings.width))
+  R("start_designer")
+  local function order()
+    local at = {}
+    for i, el in ipairs(player.gui.screen.children) do at[el.name] = i end
+    return at.pw_designer, at.pw_designer_help
+  end
+  local main, help = order()
+  check("the guide opens in front of the designer", help and main and help > main, tostring(main) .. " / " .. tostring(help))
+  R("designer_event", "on_display_changed", {player_index = P}) -- the screen size becomes known just after joining
+  -- (bring_to_front changes what is drawn on top but not the order of screen.children, so which window is in front
+  -- after a rebuild can't be read here; a real game showed the guide in front with the fix, behind without it)
+  check("the guide is still open after the window is rebuilt", player.gui.screen.pw_designer_help ~= nil)
+  -- Esc closes the guide (the game sends on_gui_closed for the window the player has open)
+  check("the guide is the player's open window (so Esc closes it)", player.opened == player.gui.screen.pw_designer_help)
+  R("designer_event", "on_gui_closed", {element = player.gui.screen.pw_designer_help, player_index = P})
+  check("... and closing it removes it, leaving the designer", player.gui.screen.pw_designer_help == nil and root(player) ~= nil)
+  -- typing a name shows it in the planet list and the starting-planet hint straight away
+  local field = find(root(player), function(t) return t.pw == "text" and t.path == "name" end)
+  field.text = "Tiny Test"
+  R("designer_event", "on_gui_text_changed", {element = field, player_index = P})
+  local list = find(root(player), function(t) return t.pw == "select-design" end)
+  check("a typed name shows in the planet list at once", list and list.items[list.selected_index] == "Tiny Test",
+    list and tostring(list.items[list.selected_index]))
+  local hint = root(player).pw_start_hint
+  local function find_named(el, name)
+    if el.name == name then return el end
+    for _, c in pairs(el.children) do local f = find_named(c, name) if f then return f end end
+  end
+  hint = find_named(root(player), "pw_start_hint")
+  check("... and in the starting-planet hint", hint and serpent.line(hint.caption):find("Tiny Test", 1, true) ~= nil,
+    hint and serpent.line(hint.caption))
+  -- the preview finishes by itself (no designer_settle), on an unlimited surface
+  return 1200, function()
+    local s = game.surfaces["pw-preview-" .. P]
+    check("the preview's surface has no size limit", s.map_gen_settings.width >= 1000000 and s.map_gen_settings.height >= 1000000,
+      s.map_gen_settings.width .. " x " .. s.map_gen_settings.height)
+    local n = 0
+    for x = -7, 6 do for y = -7, 6 do if s.is_chunk_generated({x, y}) then n = n + 1 end end end
+    check("the whole preview was generated (196 chunks)", n == 196, n)
+    check("the preview finished by itself", R("designer_pending", P) == false)
+    local making = find_named(root(player), "pw_making")
+    check("... and the window no longer says it's making it", making == nil or not making.visible)
+  end
+end
 
 local function test_startplanet()
   local V = "pw-verd0005"
@@ -1572,6 +1632,22 @@ local function test_codec()
   check("...and comes back exactly the same", back and same(back.planets[1], planet), back and serpent.line(back.planets[1]))
   local found = codes.read_all("junk text " .. codes.PREFIX .. code .. "   " .. codes.PREFIX .. code .. "\nmore junk")
   check("read_all finds several codes among other text", #found == 2, #found)
+  -- codes broken over lines (emails wrap at 76 characters; Windows line ends; indented quotes)
+  local full = codes.PREFIX .. code
+  local function wrap(text, width, sep)
+    local parts = {}
+    for i = 1, #text, width do parts[#parts + 1] = text:sub(i, i + width - 1) end
+    return table.concat(parts, sep)
+  end
+  found = codes.read_all(wrap(full, 76, "\n"))
+  check("a code wrapped every 76 characters is read", #found == 1 and same(found[1].planet, planet), #found)
+  found = codes.read_all("Here it is:\r\n  " .. wrap(full, 50, "\r\n  ") .. "\r\nhave fun!")
+  check("... and one wrapped with Windows line ends and an indent, inside a message", #found == 1 and same(found[1].planet, planet), #found)
+  found = codes.read_all(full .. " and " .. full .. " are mine")
+  check("two codes with words between them are both read", #found == 2, #found)
+  local damaged = wrap(full, 76, "\n"):sub(1, -20)
+  local _, probs = codes.read_all(damaged)
+  check("a wrapped code that is cut short is reported, not loaded", #probs == 1, #probs)
 
   -- A big code, like a planet with a hand-built start area
   local tiles = {}
@@ -1644,6 +1720,7 @@ local SUITES = {
   testplay = test_testplay,
   startarea = test_startarea,
   startplanet = test_startplanet,
+  tinymap = test_tinymap,
   homestead = test_homestead,
   share = test_share,
   examples = test_examples,
